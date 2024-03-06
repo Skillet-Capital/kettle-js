@@ -1,0 +1,41 @@
+{
+  "name": "kettle-js",
+  "version": "1.0.1",
+  "description": "",
+  "main": "build/src/index.js",
+  "types": "build/src/index.d.ts",
+  "files": [
+    "build/src"
+  ],
+  "license": "Apache-2.0",
+  "keywords": [],
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "gts lint",
+    "clean": "gts clean",
+    "compile": "tsc",
+    "fix": "gts fix",
+    "prepare": "npm run compile",
+    "pretest": "npm run compile",
+    "posttest": "npm run lint"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "@rari-capital/solmate": "^6.4.0",
+    "@typechain/ethers-v6": "^0.5.1",
+    "@typechain/hardhat": "^9.1.0",
+    "@types/node": "20.8.2",
+    "chai": "^4.4.1",
+    "chai-as-promised": "^7.1.1",
+    "gts": "^5.2.0",
+    "hardhat": "^2.19.2",
+    "kettle_v3": "git+https://github.com/Skillet-Capital/kettle-contract.git",
+    "sinon-chai": "^3.7.0",
+    "ts-node": "^10.9.2",
+    "typechain": "^8.3.2",
+    "typescript": "~5.2.0"
+  },
+  "dependencies": {
+    "ethers": "^6.9.0"
+  }
+}
