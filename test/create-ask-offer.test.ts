@@ -4,6 +4,7 @@ import { expect } from "chai";
 import { parseEther, parseUnits } from "ethers";
 import { ethers } from "hardhat";
 
+import { LoanOffer, MarketOffer, OfferType } from "../src/types";
 import { ItemType, MAX_INT, ADDRESS_ZERO, BYTES_ZERO } from "../src/constants";
 
 import { describeWithFixture } from "./utils/setup";
@@ -13,7 +14,7 @@ const MONTH_SECONDS = 30 * 24 * 60 * 60;
 
 describeWithFixture("create a ask offer", (fixture) => {
   it("should create a ask offer", async () => {
-    const { signer, kettle, testErc721, testErc20, testErc1155 } = fixture;
+    const { signer, taker, kettle, testErc721, testErc20, testErc1155 } = fixture;
 
     const principal = parseUnits("10000", 6);
 
@@ -39,7 +40,13 @@ describeWithFixture("create a ask offer", (fixture) => {
     }
 
     const createStep = steps.find((s) => s.type === "create") as CreateOrderAction;
-    const { type, offer, signature } = await createStep!.createOrder();
-    // console.log({ type, offer, signature })
+    const create = await createStep!.createOrder();
+
+    expect(create.type).to.equal(OfferType.MARKET_OFFER);
+    const offer = create.offer as MarketOffer;
+    const signature = create.signature;
+
+    expect(await kettle.validateMarketOfferSignature(offer.maker, offer, signature)).to.be.true;
+    expect(await kettle.validateMarketOfferSignature(await taker.getAddress(), offer, signature)).to.be.false;
   });
 });
