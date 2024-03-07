@@ -50,6 +50,7 @@ export type LoanOffer = {
   fee: FeeTerms;
   expiration: string | number | bigint;
   salt: string | number | bigint;
+  nonce: string | number | bigint;
 }
 
 export type MarketOfferTerms = {
@@ -68,6 +69,7 @@ export type MarketOffer = {
   fee: FeeTerms;
   expiration: string | number | bigint;
   salt: string | number | bigint;
+  nonce: string | number | bigint;
 }
 
 export type CreateLoanOfferInput = {

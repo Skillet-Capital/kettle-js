@@ -5,6 +5,7 @@ coverage.json
 typechain-types
 lib
 yarn.lock
+build/
 
 #Hardhat files
 cache
