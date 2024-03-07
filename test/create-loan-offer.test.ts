@@ -7,7 +7,7 @@ import { ethers } from "hardhat";
 import { ItemType, MAX_INT, ADDRESS_ZERO } from "../src/constants";
 
 import { describeWithFixture } from "./utils/setup";
-import { ApprovalAction, CreateOrderAction } from "../src/types";
+import { ApprovalAction, CreateOrderAction, LoanOffer, MarketOffer, OfferType } from "../src/types";
 
 const MONTH_SECONDS = 30 * 24 * 60 * 60;
 
@@ -45,6 +45,12 @@ describeWithFixture("create a loan offer", (fixture) => {
     }
 
     const createStep = steps.find((s) => s.type === "create") as CreateOrderAction;
-    const { type, offer, signature } = await createStep!.createOrder();
+    const create = await createStep!.createOrder();
+    
+    expect(create.type).to.equal(OfferType.LOAN_OFFER);
+    const offer = create.offer as LoanOffer;
+    const signature = create.signature;
+
+    expect(await kettle.validateLoanOfferSignature(offer.lender, offer, signature)).to.be.true;
   });
 })

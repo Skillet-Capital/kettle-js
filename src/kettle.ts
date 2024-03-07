@@ -111,7 +111,7 @@ export class Kettle {
     const offerer = await signer!.getAddress();
     const operator = await this.contract.getAddress();
 
-    const offer = this._formatLoanOffer(offerer!, input);
+    const offer = await this._formatLoanOffer(offerer!, input);
 
     const balance = await currencyBalance(
       offerer,
@@ -164,7 +164,7 @@ export class Kettle {
     const offerer = await signer!.getAddress();
     const operator = await this.contract.getAddress();
 
-    const offer = this._formatMarketOffer(Side.ASK, offerer!, input);
+    const offer = await this._formatMarketOffer(Side.ASK, offerer!, input);
 
     const balance = await collateralBalance(
       offerer,
@@ -238,7 +238,7 @@ export class Kettle {
     const offerer = await signer!.getAddress();
     const operator = await this.contract.getAddress();
 
-    const offer = this._formatMarketOffer(Side.BID, offerer!, input);
+    const offer = await this._formatMarketOffer(Side.BID, offerer!, input);
 
     const balance = await currencyBalance(
       offerer,
@@ -521,7 +521,7 @@ export class Kettle {
     }
   }
 
-  private _formatLoanOffer(
+  private async _formatLoanOffer(
     offerer: string,
     {
       collection,
@@ -542,7 +542,7 @@ export class Kettle {
       installments,
       expiration
     }: CreateLoanOfferInput,
-  ): LoanOffer {
+  ): Promise<LoanOffer> {
 
     const collateral: Collateral = {
       collection,
@@ -570,6 +570,7 @@ export class Kettle {
     };
 
     const salt = generateRandomSalt();
+    const nonce = await this.contract.nonces(offerer);
 
     return {
       lender: offerer,
@@ -577,11 +578,12 @@ export class Kettle {
       terms,
       fee: feeTerms,
       expiration,
-      salt
+      salt,
+      nonce
     };
   }
 
-  private _formatMarketOffer(
+  private async _formatMarketOffer(
     side: Side,
     offerer: string,
     {
@@ -599,7 +601,7 @@ export class Kettle {
       recipient,
       expiration
     }: CreateMarketOfferInput,
-  ): MarketOffer {
+  ): Promise<MarketOffer> {
     const collateral: Collateral = {
       collection,
       criteria,
@@ -622,6 +624,7 @@ export class Kettle {
     };
 
     const salt = generateRandomSalt();
+    const nonce = await this.contract.nonces(offerer);
 
     return {
       side,
@@ -630,7 +633,8 @@ export class Kettle {
       terms,
       fee: feeTerms,
       expiration,
-      salt
+      salt,
+      nonce
     };
   }
 
@@ -645,17 +649,60 @@ export class Kettle {
     }
   }
 
+  public getLoanOfferHash(offer: LoanOffer) {
+    return this.contract.hashLoanOffer(offer);
+  }
+
+  public getMarketOfferHash(offer: MarketOffer) {
+    return this.contract.hashMarketOffer(offer);
+  }
+
+  public async getLoanOfferMessageToSign(offer: LoanOffer) {
+    const domain = await this._getDomainData();
+
+    return TypedDataEncoder.hash(
+      domain, 
+      LOAN_OFFER_TYPE,
+      offer
+    )
+  }
+
+  public async getMarketOfferMessageToSign(offer: MarketOffer) {
+    const domain = await this._getDomainData();
+
+    return TypedDataEncoder.hash(
+      domain, 
+      MARKET_OFFER_TYPE,
+      offer
+    )
+  }
+
   public async signLoanOffer(offer: LoanOffer) {
     const domain = await this._getDomainData();
 
     return this.signer!.signTypedData(
       domain, 
       LOAN_OFFER_TYPE, 
-      {
-        ...offer,
-        nonce: await this.contract.nonces(offer.lender)
-      }
+      offer
     );
+  }
+
+  public async validateLoanOfferSignature(
+    maker: string,
+    offer: LoanOffer, 
+    signature: string
+  ) {
+    const message = await this.getLoanOfferMessageToSign(offer);
+    return ethers.recoverAddress(message, signature) === maker;
+  }
+
+  public async validateMarketOfferSignature(
+    maker: string,
+    offer: MarketOffer, 
+    signature: string
+  ) {
+    const message = await this.getMarketOfferMessageToSign(offer);
+    return ethers.recoverAddress(message, signature) === maker;
   }
 
   public async signMarketOffer(offer: MarketOffer) {
@@ -663,11 +710,8 @@ export class Kettle {
 
     return this.signer!.signTypedData(
       domain, 
-      MARKET_OFFER_TYPE, 
-      {
-        ...offer,
-        nonce: await this.contract.nonces(offer.maker)
-      }
+      MARKET_OFFER_TYPE,
+      offer
     );
   }
 
