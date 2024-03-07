@@ -5,9 +5,10 @@ import { parseEther, parseUnits } from "ethers";
 import { ethers } from "hardhat";
 
 import { ItemType, MAX_INT, ADDRESS_ZERO, BYTES_ZERO } from "../src/constants";
+import { ApprovalAction, CreateOrderAction, TakeOrderAction } from "../src/types";
 
 import { describeWithFixture } from "./utils/setup";
-import { MarketOffer } from "../src/types";
+import type { MarketOffer } from "../src/types";
 
 const MONTH_SECONDS = 30 * 24 * 60 * 60;
 
@@ -40,13 +41,18 @@ describeWithFixture("take a ask offer", (fixture) => {
       expiration: await time.latest() + MONTH_SECONDS,
     });
 
-    const approvals = steps.filter((s) => s.type === "approval");
+    const approvals = steps.filter((s) => s.type === "approval") as ApprovalAction[];
     for (const step of approvals) {
-      await step.transact();
+      await step.approve();
     }
 
-    const createStep = steps.find((s) => s.type === "create");
-    ({ offer, signature } = await createStep!.create());
+    const createStep = steps.find((s) => s.type === "create") as CreateOrderAction;
+    const create = await createStep!.createOrder();
+
+    offer = create.offer as MarketOffer;
+    signature = create.signature;
+
+    console.log(offer);
   })
 
   it("should take a ask offer", async () => {
@@ -59,12 +65,12 @@ describeWithFixture("take a ask offer", (fixture) => {
       signature
     );
 
-    const approvals = steps.filter((s) => s.type === "approval");
+    const approvals = steps.filter((s) => s.type === "approval") as ApprovalAction[];
     for (const step of approvals) {
-      await step.transact();
+      await step.approve();
     }
 
-    const takeStep = steps.find((s) => s.type === "take");
-    const txn = await takeStep!.take();
+    const takeStep = steps.find((s) => s.type === "take") as TakeOrderAction;
+    const txn = await takeStep.takeOrder();
   });
 });

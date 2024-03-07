@@ -7,7 +7,7 @@ import { ethers } from "hardhat";
 import { ItemType, MAX_INT, ADDRESS_ZERO, BYTES_ZERO } from "../src/constants";
 
 import { describeWithFixture } from "./utils/setup";
-import { LoanOffer } from "../src/types";
+import { ApprovalAction, CreateOrderAction, LoanOffer, TakeOrderAction } from "../src/types";
 
 const MONTH_SECONDS = 30 * 24 * 60 * 60;
 
@@ -46,13 +46,16 @@ describeWithFixture("take a loan offer", (fixture) => {
       expiration: await time.latest() + MONTH_SECONDS,
     });
 
-    const approvals = steps.filter((s) => s.type === "approval");
+    const approvals = steps.filter((s) => s.type === "approval") as ApprovalAction[];
     for (const step of approvals) {
-      await step.transact();
+      await step.approve();
     }
 
-    const createStep = steps.find((s) => s.type === "create");
-    ({ offer, signature } = await createStep!.create());
+    const createStep = steps.find((s) => s.type === "create") as CreateOrderAction;
+    const create = await createStep!.createOrder();
+
+    offer = create.offer as LoanOffer;
+    signature = create.signature;
   })
 
   it("should take a loan offer", async () => {
@@ -61,17 +64,16 @@ describeWithFixture("take a loan offer", (fixture) => {
     await testErc721.mint(taker, tokenId);
 
     const steps = await kettle.connect(taker).takeLoanOffer(
-      principal,
       offer,
       signature
     );
 
-    const approvals = steps.filter((s) => s.type === "approval");
+    const approvals = steps.filter((s) => s.type === "approval") as ApprovalAction[];
     for (const step of approvals) {
-      await step.transact();
+      await step.approve();
     }
 
-    const takeStep = steps.find((s) => s.type === "take");
-    const txn = await takeStep!.take();
+    const takeStep = steps.find((s) => s.type === "take") as TakeOrderAction;
+    const txn = await takeStep!.takeOrder();
   });
 });

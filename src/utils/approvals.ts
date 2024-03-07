@@ -5,6 +5,8 @@ import { Collateral, CurrencyTerms, ItemType } from "../types";
 import { isErc1155Item, isErc721Item } from "./item";
 import { MAX_INT } from "../constants";
 
+import type { ApprovalAction } from "../types";
+
 export type BalancesAndApprovals = {
   token: string;
   identifierOrCriteria: string;
@@ -43,13 +45,13 @@ export async function getApprovalAction(
   token: string,
   operator: string,
   signer: Signer
-) {
+): Promise<ApprovalAction> {
   const contract = TestERC721__factory.connect(token, signer);
   const transactionMethod = await contract.setApprovalForAll.populateTransaction(operator, true);
 
   return {
     type: "approval",
-    transact: async () => {
+    approve: async () => {
       return await signer.sendTransaction(transactionMethod)
     }
   }
@@ -59,15 +61,14 @@ export async function getAllowanceAction(
   currency: string,
   spender: string,
   signer: Signer
-) {
+): Promise<ApprovalAction> {
     const contract = TestERC20__factory.connect(currency, signer);
     const transactionMethod = await contract.approve.populateTransaction(spender, MAX_INT);
 
   return {
     type: "approval",
-    transact: async () => {
+    approve: async () => {
       return await signer.sendTransaction(transactionMethod)
     }
   }
 }
-

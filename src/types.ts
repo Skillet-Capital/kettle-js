@@ -1,4 +1,4 @@
-
+import { ethers } from "ethers";
 import { Kettle as KettleContract } from "./typechain-types/kettle_v3/contracts/Kettle";
 
 export type { KettleContract }
@@ -104,4 +104,25 @@ export type CreateMarketOfferInput = {
   fee: string | number | bigint;
   recipient: string;
   expiration: string | number | bigint;
+}
+
+export type OrderWithSignatureAndType = {
+  type: OfferType;
+  offer: LoanOffer | MarketOffer;
+  signature: string;
+}
+
+export type CreateOrderAction = {
+  type: "create";
+  createOrder: () => Promise<OrderWithSignatureAndType>;
+}
+
+export type ApprovalAction = {
+  type: "approval";
+  approve: () => Promise<ethers.TransactionResponse>;
+}
+
+export type TakeOrderAction = {
+  type: "take";
+  takeOrder: () => Promise<ethers.TransactionResponse>;
 }
