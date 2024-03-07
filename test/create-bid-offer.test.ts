@@ -7,6 +7,7 @@ import { ethers } from "hardhat";
 import { ItemType, MAX_INT, ADDRESS_ZERO, BYTES_ZERO } from "../src/constants";
 
 import { describeWithFixture } from "./utils/setup";
+import { ApprovalAction, CreateOrderAction } from "../src/types";
 
 const MONTH_SECONDS = 30 * 24 * 60 * 60;
 
@@ -31,13 +32,13 @@ describeWithFixture("create a bid offer", (fixture) => {
       expiration: await time.latest() + MONTH_SECONDS,
     });
 
-    const approvals = steps.filter((s) => s.type === "approval");
+    const approvals = steps.filter((s) => s.type === "approval") as ApprovalAction[];
     for (const step of approvals) {
-      await step.transact();
+      await step.approve();
     }
 
-    const createStep = steps.find((s) => s.type === "create");
-    const { type, offer, signature } = await createStep!.create();
+    const createStep = steps.find((s) => s.type === "create") as CreateOrderAction;
+    const { type, offer, signature } = await createStep.createOrder();
     console.log({ type, offer, signature })
 
   });

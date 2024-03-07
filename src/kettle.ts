@@ -33,7 +33,11 @@ import type {
   MarketOffer,
   CreateLoanOfferInput,
   CreateMarketOfferInput,
-  KettleContract 
+  KettleContract ,
+  CreateOrderAction,
+  ApprovalAction,
+  OrderWithSignatureAndType,
+  TakeOrderAction,
 } from "./types";
 
 import {
@@ -98,7 +102,10 @@ export class Kettle {
     return new Kettle(signer, this.contractAddress);
   }
 
-  public async createLoanOffer(input: CreateLoanOfferInput) {
+  public async createLoanOffer(
+    input: CreateLoanOfferInput
+  ): Promise<(ApprovalAction | CreateOrderAction)[]>
+  {
     const signer = this.signer;
     const offerer = await signer!.getAddress();
     const operator = await this.contract.getAddress();
@@ -135,7 +142,7 @@ export class Kettle {
 
     const createOfferAction = {
       type: "create",
-      create: async () => {
+      createOrder: async (): Promise<OrderWithSignatureAndType> => {
         const signature = await this.signLoanOffer(offer);
 
         return {
@@ -149,7 +156,9 @@ export class Kettle {
     return [...approvalActions, createOfferAction];
   }
 
-  public async createAskOffer(input: CreateMarketOfferInput) {
+  public async createAskOffer(
+    input: CreateMarketOfferInput
+  ): Promise<(ApprovalAction | CreateOrderAction)[]>{
     const signer = this.signer;
     const offerer = await signer!.getAddress();
     const operator = await this.contract.getAddress();
@@ -207,7 +216,7 @@ export class Kettle {
 
     const createOfferAction = {
       type: "create",
-      create: async () => {
+      createOrder: async (): Promise<OrderWithSignatureAndType> => {
         const signature = await this.signMarketOffer(offer);
 
         return {
@@ -221,7 +230,9 @@ export class Kettle {
     return [...approvalActions, createOfferAction];
   }
 
-  public async createBidOffer(input: CreateMarketOfferInput) {
+  public async createBidOffer(
+    input: CreateMarketOfferInput
+  ): Promise<(ApprovalAction | CreateOrderAction)[]>{
     const signer = this.signer;
     const offerer = await signer!.getAddress();
     const operator = await this.contract.getAddress();
@@ -259,7 +270,7 @@ export class Kettle {
 
     const createOfferAction = {
       type: "create",
-      create: async () => {
+      createOrder: async (): Promise<OrderWithSignatureAndType> => {
         const signature = await this.signMarketOffer(offer);
 
         return {
@@ -273,7 +284,10 @@ export class Kettle {
     return [...approvalActions, createOfferAction];
   }
 
-  public async takeLoanOffer(amount: bigint, offer: LoanOffer, signature: string) {
+  public async takeLoanOffer(
+    offer: LoanOffer, 
+    signature: string
+  ): Promise<(ApprovalAction | TakeOrderAction)[]> {
     const signer = this.signer;
     const taker = await signer!.getAddress();
     const operator = await this.contract.getAddress();
@@ -307,10 +321,10 @@ export class Kettle {
 
     const takeOfferAction = {
       type: "take",
-      take: async () => {
-        return await this.contract.connect(signer).borrow(
+      takeOrder: () => {
+        return this.contract.connect(signer).borrow(
           offer,
-          amount,
+          offer.terms.maxAmount,
           offer.collateral.identifier,
           ADDRESS_ZERO,
           signature,
@@ -322,7 +336,10 @@ export class Kettle {
     return [...approvalActions, takeOfferAction];
   }
 
-  public async takeAskOffer(offer: MarketOffer, signature: string) {
+  public async takeAskOffer(
+    offer: MarketOffer, 
+    signature: string
+  ): Promise<(ApprovalAction | TakeOrderAction)[]> {
     const signer = this.signer;
     const taker = await signer!.getAddress();
     const operator = await this.contract.getAddress();
@@ -357,7 +374,7 @@ export class Kettle {
 
     const takeOfferAction = {
       type: "take",
-      take: async () => {
+      takeOrder: async () => {
         return await this.contract.connect(signer).marketOrder(
           offer.collateral.identifier,
           offer,
