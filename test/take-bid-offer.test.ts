@@ -5,17 +5,18 @@ import { parseEther, parseUnits } from "ethers";
 import { ethers } from "hardhat";
 
 import { ItemType, MAX_INT, ADDRESS_ZERO, BYTES_ZERO } from "../src/constants";
+import { ApprovalAction, CreateOrderAction, TakeOrderAction } from "../src/types";
 
 import { describeWithFixture } from "./utils/setup";
-import { ApprovalAction, CreateOrderAction, LoanOffer, TakeOrderAction } from "../src/types";
+import type { MarketOffer } from "../src/types";
 
 const MONTH_SECONDS = 30 * 24 * 60 * 60;
 
-describeWithFixture("take a loan offer", (fixture) => {
-  let principal: bigint;
+describeWithFixture("take a ask offer", (fixture) => {
+  let amount: bigint;
   let tokenId: bigint | number;
   
-  let offer: LoanOffer;
+  let offer: MarketOffer;
   let signature: string;
 
   beforeEach(async () => {
@@ -23,26 +24,19 @@ describeWithFixture("take a loan offer", (fixture) => {
 
     tokenId = 1;
 
-    principal = parseUnits("10000", 6);
-    await testErc20.mint(signer, principal);
+    amount = parseUnits("10000", 6);
+    await testErc20.mint(signer, amount);
 
-    const steps = await kettle.connect(signer).createLoanOffer({
+    const steps = await kettle.createBidOffer({
       collection: await testErc721.getAddress(),
       criteria: 0,
       itemType: 0,
-      identifier: tokenId,
+      identifier: 1,
       size: 1,
       currency: await testErc20.getAddress(),
-      totalAmount: principal,
-      maxAmount: principal,
-      minAmount: principal,
-      rate: parseUnits("0.1", 4),
-      defaultRate: parseUnits("0.1", 4),
+      amount,
       fee: parseUnits("0.1", 4),
       recipient: await recipient.getAddress(),
-      period: MONTH_SECONDS,
-      gracePeriod: MONTH_SECONDS,
-      installments: 12,
       expiration: await time.latest() + MONTH_SECONDS,
     });
 
@@ -54,16 +48,16 @@ describeWithFixture("take a loan offer", (fixture) => {
     const createStep = steps.find((s) => s.type === "create") as CreateOrderAction;
     const create = await createStep!.createOrder();
 
-    offer = create.offer as LoanOffer;
+    offer = create.offer as MarketOffer;
     signature = create.signature;
-  })
+  });
 
-  it("should take a loan offer", async () => {
+  it("should take a bid offer", async () => {
     const { taker, kettle, testErc721, testErc20, testErc1155 } = fixture;
 
     await testErc721.mint(taker, tokenId);
 
-    const steps = await kettle.connect(taker).takeLoanOffer(
+    const steps = await kettle.connect(taker).takeBidOffer(
       offer,
       signature
     );
@@ -74,38 +68,37 @@ describeWithFixture("take a loan offer", (fixture) => {
     }
 
     const takeStep = steps.find((s) => s.type === "take") as TakeOrderAction;
-    const txn = await takeStep!.takeOrder();
+    const txn = await takeStep.takeOrder();
   });
 
-  it("should fail if borrower does not own asset", async () => {
-    const { taker, kettle, testErc721, testErc20, testErc1155 } = fixture;
-
-    await expect(kettle.connect(taker).takeLoanOffer(
-      offer,
-      signature
-    )).to.be.rejectedWith("Borrower does not own collateral");
-  
-  })
-
-  it("should fail if lender does not have adequate balance", async () => {
+  it("should fail if buyer does not have adequate balance", async () => {
     const { signer, taker, kettle, testErc721, testErc20, testErc1155 } = fixture;
 
-    await testErc20.connect(signer).transfer(taker, principal);
+    await testErc20.connect(signer).transfer(taker, amount);
 
-    await expect(kettle.connect(taker).takeLoanOffer(
+    await expect(kettle.connect(taker).takeBidOffer(
       offer,
       signature
-    )).to.be.rejectedWith("Insufficient lender balance");
+    )).to.be.rejectedWith("Insufficient buyer balance");
   });
 
-  it("should fail if lender does not have adequate allowance", async () => {
+  it("should fail if buyer does not have approvals on collateral", async () => {
     const { signer, taker, kettle, kettleContract, testErc721, testErc20, testErc1155 } = fixture;
 
     await testErc20.connect(signer).approve(kettleContract, 0);
 
-    await expect(kettle.connect(taker).takeLoanOffer(
+    await expect(kettle.connect(taker).takeBidOffer(
       offer,
       signature
-    )).to.be.rejectedWith("Insufficient lender allowance");
+    )).to.be.rejectedWith("Insufficient buyer allowance");
   });
+
+  it("should fail if seller does not own collateral", async () => {
+    const { signer, taker, kettle, testErc721, testErc20, testErc1155 } = fixture;
+
+    await expect(kettle.connect(taker).takeBidOffer(
+      offer,
+      signature
+    )).to.be.rejectedWith("Seller does not own collateral");
+  })
 });

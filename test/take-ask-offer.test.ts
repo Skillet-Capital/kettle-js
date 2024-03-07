@@ -51,9 +51,7 @@ describeWithFixture("take a ask offer", (fixture) => {
 
     offer = create.offer as MarketOffer;
     signature = create.signature;
-
-    console.log(offer);
-  })
+  });
 
   it("should take a ask offer", async () => {
     const { taker, kettle, testErc721, testErc20, testErc1155 } = fixture;
@@ -73,4 +71,24 @@ describeWithFixture("take a ask offer", (fixture) => {
     const takeStep = steps.find((s) => s.type === "take") as TakeOrderAction;
     const txn = await takeStep.takeOrder();
   });
+
+  it("should fail if lender does not owner collateral", async () => {
+    const { signer, taker, kettle, testErc721, testErc20, testErc1155 } = fixture;
+
+    await testErc721.connect(signer).transferFrom(signer, taker, tokenId);
+
+    await expect(kettle.connect(taker).takeAskOffer(
+      offer,
+      signature
+    )).to.be.rejectedWith("Seller does not own collateral");
+  });
+
+  it("should fail if borrower does not have adequate balance", async () => {
+    const { signer, taker, kettle, testErc721, testErc20, testErc1155 } = fixture;
+
+    await expect(kettle.connect(taker).takeAskOffer(
+      offer,
+      signature
+    )).to.be.rejectedWith("Insufficient buyer balance");
+  })
 });
