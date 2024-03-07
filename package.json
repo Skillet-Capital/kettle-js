@@ -1,5 +1,5 @@
 {
-  "name": "kettle-js",
+  "name": "kettle-core-js",
   "version": "1.0.1",
   "description": "",
   "main": "build/src/index.js",
@@ -10,9 +10,10 @@
   "license": "Apache-2.0",
   "keywords": [],
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc --build",
+    "clean": "tsc --build --clean",
+    "test": "npx hardhat test",
     "lint": "gts lint",
-    "clean": "gts clean",
     "compile": "tsc",
     "fix": "gts fix",
     "prepare": "npm run compile",
