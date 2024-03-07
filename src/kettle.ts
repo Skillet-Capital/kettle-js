@@ -292,6 +292,30 @@ export class Kettle {
     const taker = await signer!.getAddress();
     const operator = await this.contract.getAddress();
 
+    // lender balance checks and approvals
+    const lenderBalance = await currencyBalance(
+      offer.lender,
+      offer.terms.currency,
+      offer.terms.maxAmount,
+      this.provider
+    );
+
+    if (!lenderBalance) {
+      throw new Error("Insufficient lender balance")
+    }
+
+    const lenderAllowance = await currencyAllowance(
+      offer.lender,
+      offer.terms.currency,
+      operator,
+      this.provider
+    );
+
+    if (lenderAllowance < BigInt(offer.terms.maxAmount)) {
+      throw new Error("Insufficient lender allowance")
+    }
+
+    // borrower balance checks and approvals
     const balance = await collateralBalance(
       taker,
       offer.collateral,
@@ -299,7 +323,7 @@ export class Kettle {
     );
 
     if (!balance) {
-      throw new Error("Insufficient balance")
+      throw new Error("Borrower does not own collateral")
     }
 
     const approvals = await collateralApprovedForAll(
@@ -344,6 +368,28 @@ export class Kettle {
     const taker = await signer!.getAddress();
     const operator = await this.contract.getAddress();
 
+    // seller balance checks and approvals
+    const sellerBalance = await collateralBalance(
+      offer.maker,
+      offer.collateral,
+      this.provider
+    );
+
+    if (!sellerBalance) {
+      throw new Error("Seller does not own collateral")
+    }
+
+    const sellerAllowance = await collateralApprovedForAll(
+      offer.maker,
+      offer.collateral,
+      operator,
+      this.provider
+    );
+
+    if (!sellerAllowance) {
+      throw new Error("Seller has not approved collateral")
+    }
+
     const balance = await currencyBalance(
       taker,
       offer.terms.currency,
@@ -352,7 +398,7 @@ export class Kettle {
     );
 
     if (!balance) {
-      throw new Error("Insufficient balance")
+      throw new Error("Insufficient buyer balance")
     }
 
     const allowance = await currencyAllowance(
@@ -370,6 +416,79 @@ export class Kettle {
           signer!
         )
       approvalActions.push(allowanceAction);
+    }
+
+    const takeOfferAction = {
+      type: "take",
+      takeOrder: async () => {
+        return await this.contract.connect(signer).marketOrder(
+          offer.collateral.identifier,
+          offer,
+          signature,
+          []
+        )
+      }
+    } as const;
+
+    return [...approvalActions, takeOfferAction];
+  }
+
+  public async takeBidOffer(
+    offer: MarketOffer, 
+    signature: string
+  ): Promise<(ApprovalAction | TakeOrderAction)[]> {
+    const signer = this.signer;
+    const taker = await signer!.getAddress();
+    const operator = await this.contract.getAddress();
+
+    // buyer balance checks and approvals
+    const buyerBalance = await currencyBalance(
+      offer.maker,
+      offer.terms.currency,
+      offer.terms.amount,
+      this.provider
+    );
+
+    if (!buyerBalance) {
+      throw new Error("Insufficient buyer balance")
+    }
+
+    const buyerAllowance = await currencyAllowance(
+      offer.maker,
+      offer.terms.currency,
+      operator,
+      this.provider
+    );
+
+    if (buyerAllowance < BigInt(offer.terms.amount)) {
+      throw new Error("Insufficient buyer allowance")
+    }
+
+    const balance = await collateralBalance(
+      taker,
+      offer.collateral,
+      this.provider
+    );
+
+    if (!balance) {
+      throw new Error("Seller does not own collateral")
+    }
+
+    const approvals = await collateralApprovedForAll(
+      taker,
+      offer.collateral,
+      operator,
+      this.provider
+    );
+
+    const approvalActions = [];
+    if (!approvals) {
+      const approvalAction = await getApprovalAction(
+          offer.collateral.collection,
+          operator,
+          signer!
+        )
+      approvalActions.push(approvalAction);
     }
 
     const takeOfferAction = {

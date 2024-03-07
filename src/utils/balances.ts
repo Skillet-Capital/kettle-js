@@ -15,12 +15,20 @@ export const collateralBalance = async (
 ) => {
   if (isErc721Item(collateral.itemType)) {
     const contract = TestERC721__factory.connect(collateral.collection, provider);
-    const _owner = await contract.ownerOf(collateral.identifier);
-    return _owner === owner;
+    try {
+      const _owner = await contract.ownerOf(collateral.identifier);
+      return _owner === owner;
+    } catch {
+      return false;
+    }
   } else {
     const contract = TestERC1155__factory.connect(collateral.collection, provider);
-    const balance = await contract.balanceOf(owner, collateral.identifier);
-    return balance >= BigInt(collateral.size);
+    try {
+      const balance = await contract.balanceOf(owner, collateral.identifier);
+      return balance >= BigInt(collateral.size);
+    } catch {
+      return false;
+    }
   }
 }
 
