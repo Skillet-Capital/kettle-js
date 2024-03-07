@@ -2,12 +2,9 @@
   "extends": "./node_modules/gts/tsconfig-google.json",
   "compilerOptions": {
     "rootDir": ".",
+    "sourceMap": true,
     "outDir": "build"
   },
-  "include": [
-    "src/**/*.ts",
-    "test/**/*.ts"
-  ],
-  "rootDirs": ["./src", "./scripts", "./test"],
-  "files": ["./hardhat.config.ts"]
+  "include": ["src/**/*.ts"],
+  "rootDirs": ["./src", "./scripts", "./test"]
 }
