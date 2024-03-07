@@ -126,3 +126,8 @@ export type TakeOrderAction = {
   type: "take";
   takeOrder: () => Promise<ethers.TransactionResponse>;
 }
+
+export type CancelOrderAction = {
+  type: "cancel";
+  cancelOrder: () => Promise<ethers.TransactionResponse>;
+}

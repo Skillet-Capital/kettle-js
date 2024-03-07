@@ -38,6 +38,7 @@ import type {
   ApprovalAction,
   OrderWithSignatureAndType,
   TakeOrderAction,
+  CancelOrderAction,
 } from "./types";
 
 import {
@@ -504,6 +505,20 @@ export class Kettle {
     } as const;
 
     return [...approvalActions, takeOfferAction];
+  }
+
+  public async cancelOffer(
+    offer: LoanOffer | MarketOffer
+  ): Promise<CancelOrderAction> {
+    const signer = this.signer;
+    const offerer = await signer!.getAddress();
+
+    return {
+      type: "cancel",
+      cancelOrder: () => {
+        return this.contract.connect(signer).cancelOffer(offer.salt);
+      }
+    }
   }
 
   private _formatLoanOffer(
