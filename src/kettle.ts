@@ -293,28 +293,7 @@ export class Kettle {
     const taker = await signer!.getAddress();
     const operator = await this.contract.getAddress();
 
-    // lender balance checks and approvals
-    const lenderBalance = await currencyBalance(
-      offer.lender,
-      offer.terms.currency,
-      offer.terms.maxAmount,
-      this.provider
-    );
-
-    if (!lenderBalance) {
-      throw new Error("Insufficient lender balance")
-    }
-
-    const lenderAllowance = await currencyAllowance(
-      offer.lender,
-      offer.terms.currency,
-      operator,
-      this.provider
-    );
-
-    if (lenderAllowance < BigInt(offer.terms.maxAmount)) {
-      throw new Error("Insufficient lender allowance")
-    }
+    await this.validateLoanOffer(offer);
 
     // borrower balance checks and approvals
     const balance = await collateralBalance(
@@ -369,28 +348,8 @@ export class Kettle {
     const taker = await signer!.getAddress();
     const operator = await this.contract.getAddress();
 
-    // seller balance checks and approvals
-    const sellerBalance = await collateralBalance(
-      offer.maker,
-      offer.collateral,
-      this.provider
-    );
-
-    if (!sellerBalance) {
-      throw new Error("Seller does not own collateral")
-    }
-
-    const sellerAllowance = await collateralApprovedForAll(
-      offer.maker,
-      offer.collateral,
-      operator,
-      this.provider
-    );
-
-    if (!sellerAllowance) {
-      throw new Error("Seller has not approved collateral")
-    }
-
+    await this.validateAskOffer(offer);
+    
     const balance = await currencyBalance(
       taker,
       offer.terms.currency,
@@ -636,6 +595,85 @@ export class Kettle {
       salt,
       nonce
     };
+  }
+
+  public async validateLoanOffer(offer: LoanOffer) {
+    const operator = await this.contract.getAddress();
+
+    const lenderBalance = await currencyBalance(
+      offer.lender,
+      offer.terms.currency,
+      offer.terms.maxAmount,
+      this.provider
+    );
+
+    if (!lenderBalance) {
+      throw new Error("Insufficient lender balance")
+    }
+
+    const lenderAllowance = await currencyAllowance(
+      offer.lender,
+      offer.terms.currency,
+      operator,
+      this.provider
+    );
+
+    if (lenderAllowance < BigInt(offer.terms.maxAmount)) {
+      throw new Error("Insufficient lender allowance")
+    }
+
+    const _offerHash = await this.getLoanOfferHash(offer);
+    const amountTaken = await this.contract.amountTaken(_offerHash);
+    const remainingAmount = BigInt(offer.terms.totalAmount) - amountTaken;
+
+    if (remainingAmount < BigInt(offer.terms.maxAmount)) {
+      throw new Error("Insufficient offer amount remaining");
+    }
+
+    const cancelled = await this.contract.cancelledOrFulfilled(offer.lender, offer.salt);
+    if (cancelled) {
+      throw new Error("Offer has been cancelled");
+    }
+
+    const nonce = await this.contract.nonces(offer.lender);
+    if (offer.nonce !== nonce) {
+      throw new Error("Invalid nonce");
+    }
+  }
+
+  public async validateAskOffer(offer: MarketOffer) {
+    const operator = await this.contract.getAddress();
+
+    const sellerBalance = await collateralBalance(
+      offer.maker,
+      offer.collateral,
+      this.provider
+    );
+
+    if (!sellerBalance) {
+      throw new Error("Seller does not own collateral")
+    }
+
+    const sellerAllowance = await collateralApprovedForAll(
+      offer.maker,
+      offer.collateral,
+      operator,
+      this.provider
+    );
+
+    if (!sellerAllowance) {
+      throw new Error("Seller has not approved collateral")
+    }
+
+    const cancelled = await this.contract.cancelledOrFulfilled(offer.maker, offer.salt);
+    if (cancelled) {
+      throw new Error("Offer has been cancelled");
+    }
+
+    const nonce = await this.contract.nonces(offer.maker);
+    if (offer.nonce !== nonce) {
+      throw new Error("Invalid nonce");
+    }
   }
 
   private async _getDomainData() {
