@@ -636,7 +636,7 @@ export class Kettle {
     }
 
     const nonce = await this.contract.nonces(offer.lender);
-    if (offer.nonce !== nonce) {
+    if (offer.nonce != nonce) {
       throw new Error("Invalid nonce");
     }
   }
@@ -671,7 +671,7 @@ export class Kettle {
     }
 
     const nonce = await this.contract.nonces(offer.maker);
-    if (offer.nonce !== nonce) {
+    if (offer.nonce != nonce) {
       throw new Error("Invalid nonce");
     }
   }
