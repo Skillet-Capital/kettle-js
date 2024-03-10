@@ -10,13 +10,13 @@
   "license": "Apache-2.0",
   "keywords": [],
   "scripts": {
-    "build": "tsc --build",
+    "build": "npx hardhat compile && tsc -p tsconfig.json",
     "clean": "tsc --build --clean",
     "test": "npx hardhat test",
     "lint": "gts lint",
     "compile": "tsc",
     "fix": "gts fix",
-    "prepare": "npm run compile",
+    "prepare": "npm run build",
     "pretest": "npm run compile",
     "posttest": "npm run lint"
   },
