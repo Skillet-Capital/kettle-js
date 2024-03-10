@@ -405,6 +405,8 @@ export class Kettle {
     const taker = await signer!.getAddress();
     const operator = await this.contract.getAddress();
 
+    await this.validateBorrowOffer(offer);
+
     // taker balance checks and approvals
     const balance = await currencyBalance(
       taker,
@@ -780,6 +782,41 @@ export class Kettle {
     }
 
     const nonce = await this.contract.nonces(offer.lender);
+    if (offer.nonce != nonce) {
+      throw new Error("Invalid nonce");
+    }
+  }
+
+  public async validateBorrowOffer(offer: BorrowOffer) {
+    const operator = await this.contract.getAddress();
+
+    const borrowerBalance = await collateralBalance(
+      offer.borrower,
+      offer.collateral,
+      this.provider
+    );
+
+    if (!borrowerBalance) {
+      throw new Error("Borrower does not own collateral")
+    }
+
+    const borrowerAllowance = await collateralApprovedForAll(
+      offer.borrower,
+      offer.collateral,
+      operator,
+      this.provider
+    );
+
+    if (!borrowerAllowance) {
+      throw new Error("Borrower has not approved collateral")
+    }
+
+    const cancelled = await this.contract.cancelledOrFulfilled(offer.borrower, offer.salt);
+    if (cancelled) {
+      throw new Error("Offer has been cancelled");
+    }
+
+    const nonce = await this.contract.nonces(offer.borrower);
     if (offer.nonce != nonce) {
       throw new Error("Invalid nonce");
     }
