@@ -397,6 +397,56 @@ export class Kettle {
     return [...approvalActions, takeOfferAction];
   }
 
+  public async takeBorrowOffer(
+    offer: BorrowOffer,
+    signature: string
+  ): Promise<(ApprovalAction | TakeOrderAction)[]> {
+    const signer = this.signer;
+    const taker = await signer!.getAddress();
+    const operator = await this.contract.getAddress();
+
+    // taker balance checks and approvals
+    const balance = await currencyBalance(
+      taker,
+      offer.terms.currency,
+      offer.terms.amount,
+      this.provider
+    );
+
+    if (!balance) {
+      throw new Error("Insufficient lender balance")
+    }
+
+    const allowance = await currencyAllowance(
+      taker,
+      offer.terms.currency,
+      operator,
+      this.provider
+    );
+
+    const approvalActions = [];
+    if (allowance < BigInt(offer.terms.amount)) {
+      const allowanceAction = await getAllowanceAction(
+          offer.terms.currency,
+          operator,
+          signer!
+        )
+      approvalActions.push(allowanceAction);
+    }
+
+    const takeOfferAction = {
+      type: "take",
+      takeOrder: async () => {
+        return await this.contract.connect(signer).loan(
+          offer,
+          signature
+        )
+      }
+    } as const;
+
+    return [...approvalActions, takeOfferAction];
+  }
+
   public async takeAskOffer(
     offer: MarketOffer, 
     signature: string
