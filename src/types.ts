@@ -53,6 +53,26 @@ export type LoanOffer = {
   nonce: string | number | bigint;
 }
 
+export type BorrowOfferTerms = {
+  currency: string;
+  amount: string | number | bigint;
+  rate: string | number | bigint;
+  defaultRate: string | number | bigint;
+  period: string | number | bigint;
+  gracePeriod: string | number | bigint;
+  installments: string | number | bigint;
+}
+
+export type BorrowOffer = {
+  borrower: string;
+  collateral: Collateral;
+  terms: BorrowOfferTerms;
+  fee: FeeTerms;
+  expiration: string | number | bigint;
+  salt: string | number | bigint;
+  nonce: string | number | bigint;
+}
+
 export type MarketOfferTerms = {
   currency: string;
   amount: string | number | bigint;
@@ -92,6 +112,24 @@ export type CreateLoanOfferInput = {
   expiration: string | number | bigint;
 }
 
+export type CreateBorrowOfferInput = {
+  collection: string;
+  criteria: Criteria;
+  itemType: ItemType;
+  identifier: string | number | bigint;
+  size: string | number | bigint;
+  currency: string;
+  amount: string | number | bigint;
+  rate: string | number | bigint;
+  defaultRate: string | number | bigint;
+  fee: string | number | bigint;
+  recipient: string;
+  period: string | number | bigint;
+  gracePeriod: string | number | bigint;
+  installments: string | number | bigint;
+  expiration: string | number | bigint;
+}
+
 export type CreateMarketOfferInput = {
   collection: string;
   criteria: Criteria;
@@ -110,7 +148,7 @@ export type CreateMarketOfferInput = {
 
 export type OrderWithSignatureAndType = {
   type: OfferType;
-  offer: LoanOffer | MarketOffer;
+  offer: LoanOffer | BorrowOffer | MarketOffer;
   signature: string;
 }
 

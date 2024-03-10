@@ -13,6 +13,7 @@ import {
   KETTLE_CONTRACT_NAME,
   KETTLE_CONTRACT_VERSION,
   LOAN_OFFER_TYPE,
+  BORROW_OFFER_TYPE,
   MARKET_OFFER_TYPE,
   BASIS_POINTS_DIVISOR,
   BYTES_ZERO,
@@ -29,9 +30,12 @@ import type {
   FeeTerms,
   LoanOfferTerms,
   LoanOffer,
+  BorrowOfferTerms,
+  BorrowOffer,
   MarketOfferTerms,
   MarketOffer,
   CreateLoanOfferInput,
+  CreateBorrowOfferInput,
   CreateMarketOfferInput,
   KettleContract ,
   CreateOrderAction,
@@ -148,6 +152,59 @@ export class Kettle {
 
         return {
           type: OfferType.LOAN_OFFER,
+          offer,
+          signature
+        }
+      }
+    } as const;
+
+    return [...approvalActions, createOfferAction];
+  }
+
+  public async createBorrowOffer(
+    input: CreateBorrowOfferInput
+  ): Promise<(ApprovalAction | CreateOrderAction)[]>
+  {
+    const signer = this.signer;
+    const offerer = await signer!.getAddress();
+    const operator = await this.contract.getAddress();
+
+    const offer = await this._formatBorrowOffer(offerer!, input);
+
+    const balance = await collateralBalance(
+      offerer,
+      offer.collateral,
+      this.provider
+    );
+
+    if (!balance) {
+      throw new Error("Insufficient collateral balance")
+    }
+
+    const approvals = await collateralApprovedForAll(
+      offerer,
+      offer.collateral,
+      operator,
+      this.provider
+    );
+
+    const approvalActions = [];
+    if (!approvals) {
+      const allowanceAction = await getApprovalAction(
+          offer.collateral.collection,
+          operator,
+          signer!
+        )
+      approvalActions.push(allowanceAction);
+    }
+
+    const createOfferAction = {
+      type: "create",
+      createOrder: async (): Promise<OrderWithSignatureAndType> => {
+        const signature = await this.signBorrowOffer(offer);
+
+        return {
+          type: OfferType.BORROWER_OFFER,
           offer,
           signature
         }
@@ -401,28 +458,7 @@ export class Kettle {
     const taker = await signer!.getAddress();
     const operator = await this.contract.getAddress();
 
-    // buyer balance checks and approvals
-    const buyerBalance = await currencyBalance(
-      offer.maker,
-      offer.terms.currency,
-      offer.terms.amount,
-      this.provider
-    );
-
-    if (!buyerBalance) {
-      throw new Error("Insufficient buyer balance")
-    }
-
-    const buyerAllowance = await currencyAllowance(
-      offer.maker,
-      offer.terms.currency,
-      operator,
-      this.provider
-    );
-
-    if (buyerAllowance < BigInt(offer.terms.amount)) {
-      throw new Error("Insufficient buyer allowance")
-    }
+    await this.validateBidOffer(offer);
 
     const balance = await collateralBalance(
       taker,
@@ -533,6 +569,64 @@ export class Kettle {
 
     return {
       lender: offerer,
+      collateral,
+      terms,
+      fee: feeTerms,
+      expiration,
+      salt,
+      nonce
+    };
+  }
+
+  private async _formatBorrowOffer(
+    offerer: string,
+    {
+      collection,
+      criteria,
+      itemType,
+      identifier,
+      size,
+      currency,
+      amount,
+      rate,
+      defaultRate,
+      fee,
+      recipient,
+      period,
+      gracePeriod,
+      installments,
+      expiration
+    }: CreateBorrowOfferInput,
+  ): Promise<BorrowOffer> {
+
+    const collateral: Collateral = {
+      collection,
+      criteria,
+      itemType,
+      identifier,
+      size,
+    };
+
+    const terms: BorrowOfferTerms = {
+      currency,
+      amount,
+      rate,
+      defaultRate,
+      period,
+      gracePeriod,
+      installments,
+    };
+
+    const feeTerms: FeeTerms = {
+      recipient,
+      rate: fee,
+    };
+
+    const salt = generateRandomSalt();
+    const nonce = await this.contract.nonces(offerer);
+
+    return {
+      borrower: offerer,
       collateral,
       terms,
       fee: feeTerms,
@@ -676,6 +770,42 @@ export class Kettle {
     }
   }
 
+  public async validateBidOffer(offer: MarketOffer) {
+    const operator = await this.contract.getAddress();
+
+    const buyerBalance = await currencyBalance(
+      offer.maker,
+      offer.terms.currency,
+      offer.terms.amount,
+      this.provider
+    );
+
+    if (!buyerBalance) {
+      throw new Error("Insufficient buyer balance")
+    }
+
+    const buyerAllowance = await currencyAllowance(
+      offer.maker,
+      offer.terms.currency,
+      operator,
+      this.provider
+    );
+
+    if (buyerAllowance < BigInt(offer.terms.amount)) {
+      throw new Error("Insufficient buyer allowance")
+    }
+
+    const cancelled = await this.contract.cancelledOrFulfilled(offer.maker, offer.salt);
+    if (cancelled) {
+      throw new Error("Offer has been cancelled");
+    }
+
+    const nonce = await this.contract.nonces(offer.maker);
+    if (offer.nonce != nonce) {
+      throw new Error("Invalid nonce");
+    }
+  }
+
   private async _getDomainData() {
     const { chainId } = await this.provider.getNetwork();
 
@@ -689,6 +819,10 @@ export class Kettle {
 
   public getLoanOfferHash(offer: LoanOffer) {
     return this.contract.hashLoanOffer(offer);
+  }
+
+  public getBorrowOfferHash(offer: BorrowOffer) {
+    return this.contract.hashBorrowOffer(offer);
   }
 
   public getMarketOfferHash(offer: MarketOffer) {
@@ -705,6 +839,16 @@ export class Kettle {
     )
   }
 
+  public async getBorrowOfferMessageToSign(offer: BorrowOffer) {
+    const domain = await this._getDomainData();
+
+    return TypedDataEncoder.hash(
+      domain, 
+      BORROW_OFFER_TYPE,
+      offer
+    )
+  }
+
   public async getMarketOfferMessageToSign(offer: MarketOffer) {
     const domain = await this._getDomainData();
 
@@ -713,16 +857,6 @@ export class Kettle {
       MARKET_OFFER_TYPE,
       offer
     )
-  }
-
-  public async signLoanOffer(offer: LoanOffer) {
-    const domain = await this._getDomainData();
-
-    return this.signer!.signTypedData(
-      domain, 
-      LOAN_OFFER_TYPE, 
-      offer
-    );
   }
 
   public async validateLoanOfferSignature(
@@ -734,6 +868,15 @@ export class Kettle {
     return ethers.recoverAddress(message, signature) === maker;
   }
 
+  public async validateBorrowOfferSignature(
+    maker: string,
+    offer: BorrowOffer, 
+    signature: string
+  ) {
+    const message = await this.getBorrowOfferMessageToSign(offer);
+    return ethers.recoverAddress(message, signature) === maker;
+  }
+
   public async validateMarketOfferSignature(
     maker: string,
     offer: MarketOffer, 
@@ -741,6 +884,26 @@ export class Kettle {
   ) {
     const message = await this.getMarketOfferMessageToSign(offer);
     return ethers.recoverAddress(message, signature) === maker;
+  }
+
+  public async signLoanOffer(offer: LoanOffer) {
+    const domain = await this._getDomainData();
+    
+    return this.signer!.signTypedData(
+      domain, 
+      LOAN_OFFER_TYPE, 
+      offer
+    );
+  }
+
+  public async signBorrowOffer(offer: BorrowOffer) {
+    const domain = await this._getDomainData();
+
+    return this.signer!.signTypedData(
+      domain, 
+      BORROW_OFFER_TYPE,
+      offer
+    );
   }
 
   public async signMarketOffer(offer: MarketOffer) {
