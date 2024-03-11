@@ -1,5 +1,6 @@
 import { ethers } from "ethers";
 import { Kettle as KettleContract } from "./typechain-types/kettle_v3/contracts/Kettle";
+import { PaymentDeadlineStruct } from "./typechain-types/kettle_v3/contracts/Kettle";
 
 export type { KettleContract }
 
@@ -7,6 +8,12 @@ export enum OfferType {
   LOAN_OFFER,
   BORROWER_OFFER,
   MARKET_OFFER
+}
+
+export enum LienStatus {
+  CURRENT,
+  DELINQUENT,
+  DEFAULTED
 }
 
 export enum Criteria { SIMPLE, PROOF }
@@ -92,6 +99,30 @@ export type MarketOffer = {
   nonce: string | number | bigint;
 }
 
+export type LienState = {
+  installment: string | number | bigint;
+  principal: string | number | bigint;
+}
+
+export type Lien = {
+  recipient: string;
+  borrower: string;
+  currency: string;
+  collection: string;
+  itemType: ItemType;
+  tokenId: string | number | bigint;
+  size: string | number | bigint;
+  principal: string | number | bigint;
+  rate: string | number | bigint;
+  defaultRate: string | number | bigint;
+  fee: string | number | bigint;
+  period: string | number | bigint;
+  gracePeriod: string | number | bigint;
+  installments: string | number | bigint;
+  startTime: string | number | bigint;
+  state: LienState;
+}
+
 export type CreateLoanOfferInput = {
   collection: string;
   criteria: Criteria;
@@ -144,6 +175,20 @@ export type CreateMarketOfferInput = {
   fee: string | number | bigint;
   recipient: string;
   expiration: string | number | bigint;
+}
+
+export type PaymentState = {
+  status: bigint;
+  balance: string | number | bigint;
+  delinquent: PaymentDeadlineStruct;
+  current: PaymentDeadlineStruct;
+}
+
+export type RepaymentState = {
+  balance: bigint | number | string;
+  principal: bigint | number | string;
+  interest: bigint | number | string;
+  fee: bigint | number | string; 
 }
 
 export type OrderWithSignatureAndType = {
