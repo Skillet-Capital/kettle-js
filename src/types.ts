@@ -1,6 +1,5 @@
 import { ethers } from "ethers";
 import { Kettle as KettleContract } from "./typechain-types/kettle_v3/contracts/Kettle";
-import { PaymentDeadlineStruct } from "./typechain-types/kettle_v3/contracts/Kettle";
 
 export type { KettleContract }
 
@@ -177,11 +176,19 @@ export type CreateMarketOfferInput = {
   expiration: string | number | bigint;
 }
 
+export type Payment = {
+  periodStart: string | number | bigint;
+  deadline: string | number | bigint;
+  principal: string | number | bigint;
+  interest: string | number | bigint;
+  fee: string | number | bigint;
+}
+
 export type PaymentState = {
   status: bigint;
   balance: string | number | bigint;
-  delinquent: PaymentDeadlineStruct;
-  current: PaymentDeadlineStruct;
+  delinquent: Payment | null;
+  current: Payment | null;
 }
 
 export type RepaymentState = {
@@ -216,3 +223,5 @@ export type CancelOrderAction = {
   type: "cancel";
   cancelOrder: () => Promise<ethers.TransactionResponse>;
 }
+
+
