@@ -26,6 +26,9 @@ import {
 } from "./types";
 
 import type {
+  Lien,
+  PaymentState,
+  RepaymentState,
   Collateral,
   FeeTerms,
   LoanOfferTerms,
@@ -565,6 +568,21 @@ export class Kettle {
       cancelOrder: () => {
         return this.contract.connect(signer).cancelOffer(offer.salt);
       }
+    }
+  }
+
+  public async nextPayment(lien: Lien): Promise<PaymentState> {
+    return this.contract.lienStatus(lien);
+  }
+
+  public async currentRepayment(lien: Lien): Promise<RepaymentState> {
+    const repayment = await this.contract.repayment(lien);
+
+    return {
+      balance: repayment.balance,
+      principal: repayment.principal,
+      interest: repayment.currentInterest + repayment.pastInterest,
+      fee: repayment.currentFee + repayment.pastFee
     }
   }
 
