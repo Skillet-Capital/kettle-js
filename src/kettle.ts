@@ -23,10 +23,12 @@ import {
 import {
   Side,
   OfferType,
+  LienStatus,
 } from "./types";
 
 import type {
   Lien,
+  Payment,
   PaymentState,
   RepaymentState,
   Collateral,
@@ -67,6 +69,10 @@ import {
 import {
   generateRandomSalt
 } from "./utils/order";
+
+import {
+  getEpoch
+} from "./utils/time";
 
 export class Kettle {
 
@@ -571,20 +577,54 @@ export class Kettle {
     }
   }
 
-  public async nextPayment(lien: Lien): Promise<PaymentState> {
-    return this.contract.lienStatus(lien);
-  }
+  // public async nextPayment(lien: Lien): Promise<PaymentState> {
+  //   const timestamp = getEpoch();
 
-  public async currentRepayment(lien: Lien): Promise<RepaymentState> {
-    const repayment = await this.contract.repayment(lien);
+  //   const { 
+  //     balance, 
+  //     principal, 
+  //     pastInterest,
+  //     pastFee,
+  //     currentInterest,
+  //     currentFee
+  //   } = await this.contract.payments(lien, false);
 
-    return {
-      balance: repayment.balance,
-      principal: repayment.principal,
-      interest: repayment.currentInterest + repayment.pastInterest,
-      fee: repayment.currentFee + repayment.pastFee
-    }
-  }
+  //   const paidThrough = BigInt(lien.startTime) + (BigInt(lien.state.installment) * BigInt(lien.period));
+  //   const endTime = BigInt(lien.startTime) + (BigInt(lien.period) * BigInt(lien.installments));
+  //   const lastInstallmentStartTime = BigInt(lien.startTime) + (BigInt(lien.period) * (BigInt(lien.installments) - BigInt(1)));
+    
+  //   if (timestamp < paidThrough) {
+  //     return {
+  //       status: LienStatus.CURRENT,
+  //       balance,
+
+  //     }
+
+  //   }
+  //   const delinquent: Payment = {
+  //       periodStart: paidThrough,
+  //       deadline: paidThrough + BigInt(lien.period) + BigInt(lien.gracePeriod),
+  //       principal: 0,
+  //       interest: pastInterest,
+  //       fee: pastFee
+  //   };
+
+
+
+
+
+  // }
+
+  // public async currentRepayment(lien: Lien): Promise<RepaymentState> {
+  //   const repayment = await this.contract.payments(lien, true);
+
+  //   return {
+  //     balance: repayment.balance,
+  //     principal: repayment.principal,
+  //     interest: repayment.currentInterest + repayment.pastInterest,
+  //     fee: repayment.currentFee + repayment.pastFee
+  //   }
+  // }
 
   private async _formatLoanOffer(
     offerer: string,
