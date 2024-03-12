@@ -5,9 +5,12 @@ Always instantiate these imports before using the create functions
 import { ItemType, Kettle } from 'kettle-core-js';
 import { parseUnits } from '@ethersproject/units';
 
+const KETTLE_ADDRESS = "0x58fD646F4d8E8A6D1C7b074b9774e91483BA0601" // for blast_sepolia
 const MONTH_SECONDS = (365 * 24 * 60 * 60) / 12;
 const FEE = "250";
 const FEE_RECIPIENT = "0xAf810826679816a0330F786f0589D224DdEd24Ff";
+
+const kettle = new Kettle(signer, KETTLE_ADDRESS);
 ```
 
 ### Create Loan Offer
