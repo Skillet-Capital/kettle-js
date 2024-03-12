@@ -87,7 +87,7 @@ export class Kettle {
   private signer?: Signer;
 
   public constructor(
-    providerOrSigner: JsonRpcProvider | Signer,
+    providerOrSigner: JsonRpcProvider | Signer | JsonRpcSigner,
     contractAddress: string,
   ) {
     const provider = 
@@ -120,11 +120,12 @@ export class Kettle {
   }
 
   public async createLoanOffer(
-    input: CreateLoanOfferInput
+    input: CreateLoanOfferInput,
+    accountAddress?: string
   ): Promise<(ApprovalAction | CreateOrderAction)[]>
   {
-    const signer = this.signer;
-    const offerer = await signer!.getAddress();
+    const signer = await this._getSigner(accountAddress);
+    const offerer = accountAddress ?? (await signer.getAddress());
     const operator = await this.contract.getAddress();
 
     const offer = await this._formatLoanOffer(offerer!, input);
@@ -1085,5 +1086,21 @@ export class Kettle {
     rate: bigint
   ) {
     return (amount * rate) / BigInt(BASIS_POINTS_DIVISOR);
+  }
+
+  private async _getSigner(
+    accountAddress?: string,
+  ): Promise<Signer | JsonRpcSigner> {
+    if (this.signer) {
+      return this.signer;
+    }
+
+    if (!("send" in this.provider)) {
+      throw new Error(
+        "Either signer or JsonRpcProvider with signer must be provided",
+      );
+    }
+
+    return (this.provider as JsonRpcProvider).getSigner(accountAddress);
   }
 }
