@@ -175,11 +175,12 @@ export class Kettle {
   }
 
   public async createBorrowOffer(
-    input: CreateBorrowOfferInput
+    input: CreateBorrowOfferInput,
+    accountAddress?: string
   ): Promise<(ApprovalAction | CreateOrderAction)[]>
   {
-    const signer = this.signer;
-    const offerer = await signer!.getAddress();
+    const signer = await this._getSigner(accountAddress);
+    const offerer = accountAddress ?? (await signer.getAddress());
     const operator = await this.contract.getAddress();
 
     const offer = await this._formatBorrowOffer(offerer!, input);
@@ -228,10 +229,11 @@ export class Kettle {
   }
 
   public async createAskOffer(
-    input: CreateMarketOfferInput
+    input: CreateMarketOfferInput,
+    accountAddress?: string
   ): Promise<(ApprovalAction | CreateOrderAction)[]>{
-    const signer = this.signer;
-    const offerer = await signer!.getAddress();
+    const signer = await this._getSigner(accountAddress);
+    const offerer = accountAddress ?? (await signer.getAddress());
     const operator = await this.contract.getAddress();
 
     const offer = await this._formatMarketOffer(Side.ASK, offerer!, input);
@@ -302,10 +304,11 @@ export class Kettle {
   }
 
   public async createBidOffer(
-    input: CreateMarketOfferInput
+    input: CreateMarketOfferInput,
+    accountAddress?: string
   ): Promise<(ApprovalAction | CreateOrderAction)[]>{
-    const signer = this.signer;
-    const offerer = await signer!.getAddress();
+    const signer = await this._getSigner(accountAddress);
+    const offerer = accountAddress ?? (await signer.getAddress());
     const operator = await this.contract.getAddress();
 
     const offer = await this._formatMarketOffer(Side.BID, offerer!, input);
@@ -359,10 +362,11 @@ export class Kettle {
   // - { offer, signature }
   public async takeLoanOffer(
     offer: LoanOffer, 
-    signature: string
+    signature: string,
+    accountAddress?: string
   ): Promise<(ApprovalAction | TakeOrderAction)[]> {
-    const signer = this.signer;
-    const taker = await signer!.getAddress();
+    const signer = await this._getSigner(accountAddress);
+    const taker = accountAddress ?? (await signer.getAddress());
     const operator = await this.contract.getAddress();
 
     await this.validateLoanOffer(offer);
@@ -414,10 +418,11 @@ export class Kettle {
 
   public async takeBorrowOffer(
     offer: BorrowOffer,
-    signature: string
+    signature: string,
+    accountAddress?: string
   ): Promise<(ApprovalAction | TakeOrderAction)[]> {
-    const signer = this.signer;
-    const taker = await signer!.getAddress();
+    const signer = await this._getSigner(accountAddress);
+    const taker = accountAddress ?? (await signer.getAddress());
     const operator = await this.contract.getAddress();
 
     await this.validateBorrowOffer(offer);
@@ -474,10 +479,11 @@ export class Kettle {
    */
   public async takeAskOffer(
     offer: MarketOffer, 
-    signature: string
+    signature: string,
+    accountAddress?: string
   ): Promise<(ApprovalAction | TakeOrderAction)[]> {
-    const signer = this.signer;
-    const taker = await signer!.getAddress();
+    const signer = await this._getSigner(accountAddress);
+    const taker = accountAddress ?? (await signer.getAddress());
     const operator = await this.contract.getAddress();
 
     await this.validateAskOffer(offer);
@@ -535,10 +541,11 @@ export class Kettle {
    */
   public async takeBidOffer(
     offer: MarketOffer, 
-    signature: string
+    signature: string,
+    accountAddress?: string
   ): Promise<(ApprovalAction | TakeOrderAction)[]> {
-    const signer = this.signer;
-    const taker = await signer!.getAddress();
+    const signer = await this._getSigner(accountAddress);
+    const taker = accountAddress ?? (await signer.getAddress());
     const operator = await this.contract.getAddress();
 
     await this.validateBidOffer(offer);
@@ -587,10 +594,11 @@ export class Kettle {
 
   public async repay(
     lienId: bigint | number,
-    lien: Lien
+    lien: Lien,
+    accountAddress?: string
   ): Promise<(ApprovalAction | RepayAction)[]>{
-    const signer = this.signer;
-    const taker = await signer!.getAddress();
+    const signer = await this._getSigner(accountAddress);
+    const taker = accountAddress ?? (await signer.getAddress());
     const operator = await this.contract.getAddress();
 
     const allowance = await currencyAllowance(
@@ -621,14 +629,15 @@ export class Kettle {
     return [...approvalActions, repayAction];
   }
 
-  public claim(
+  public async claim(
     lienId: bigint | number,
-    lien: Lien
-  ): ClaimAction {
+    lien: Lien,
+    accountAddress?: string
+  ): Promise<ClaimAction> {
     if (BigInt(lien.startTime) + BigInt(lien.duration) + BigInt(lien.gracePeriod) > getEpoch()) {
       throw new Error("Lien is not defaulted");
     }
-    const signer = this.signer;
+    const signer = await this._getSigner(accountAddress);
 
     const claimAction = {
       type: "claim",
@@ -640,10 +649,11 @@ export class Kettle {
     return claimAction;
   }
 
-  public cancelOffer(
-    offer: LoanOffer | MarketOffer
-  ): CancelOrderAction {
-    const signer = this.signer;
+  public async cancelOffer(
+    offer: LoanOffer | MarketOffer,
+    accountAddress?: string
+  ): Promise<CancelOrderAction> {
+    const signer = await this._getSigner(accountAddress);
 
     return {
       type: "cancel",
