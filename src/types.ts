@@ -120,14 +120,10 @@ export type Lien = {
 
 export type CreateLoanOfferInput = {
   collection: string;
-  criteria: Criteria;
   itemType: ItemType;
   identifier: string | number | bigint;
-  size: string | number | bigint;
   currency: string;
-  totalAmount: string | number | bigint;
-  maxAmount: string | number | bigint;
-  minAmount: string | number | bigint;
+  amount: string | number | bigint;
   rate: string | number | bigint;
   defaultRate: string | number | bigint;
   fee: string | number | bigint;
@@ -139,10 +135,8 @@ export type CreateLoanOfferInput = {
 
 export type CreateBorrowOfferInput = {
   collection: string;
-  criteria: Criteria;
   itemType: ItemType;
   identifier: string | number | bigint;
-  size: string | number | bigint;
   currency: string;
   amount: string | number | bigint;
   rate: string | number | bigint;
@@ -156,10 +150,8 @@ export type CreateBorrowOfferInput = {
 
 export type CreateMarketOfferInput = {
   collection: string;
-  criteria: Criteria;
   itemType: ItemType;
   identifier: string | number | bigint;
-  size: string | number | bigint;
   currency: string;
   amount: string | number | bigint;
   withLoan?: boolean;
