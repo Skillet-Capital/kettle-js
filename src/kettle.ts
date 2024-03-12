@@ -119,14 +119,15 @@ export class Kettle {
   }
 
   public async createLoanOffer(
-    input: CreateLoanOfferInput
+    input: CreateLoanOfferInput,
+    accountOrAddress?: string
   ): Promise<(ApprovalAction | CreateOrderAction)[]>
   {
-    const signer = this.signer;
-    const offerer = await signer!.getAddress();
+    const signer = await this._getSigner(accountOrAddress);
+    const offerer = (accountOrAddress) ?? (await signer.getAddress());
     const operator = await this.contract.getAddress();
 
-    const offer = await this._formatLoanOffer(offerer!, input);
+    const offer = await this._formatLoanOffer(offerer, input);
 
     const balance = await currencyBalance(
       offerer,
@@ -173,14 +174,15 @@ export class Kettle {
   }
 
   public async createBorrowOffer(
-    input: CreateBorrowOfferInput
+    input: CreateBorrowOfferInput,
+    accountOrAddress?: string
   ): Promise<(ApprovalAction | CreateOrderAction)[]>
   {
-    const signer = this.signer;
-    const offerer = await signer!.getAddress();
+    const signer = await this._getSigner(accountOrAddress);
+    const offerer = (accountOrAddress) ?? (await signer.getAddress());
     const operator = await this.contract.getAddress();
 
-    const offer = await this._formatBorrowOffer(offerer!, input);
+    const offer = await this._formatBorrowOffer(offerer, input);
 
     const balance = await collateralBalance(
       offerer,
@@ -1073,5 +1075,21 @@ export class Kettle {
     rate: bigint
   ) {
     return (amount * rate) / BigInt(BASIS_POINTS_DIVISOR);
+  }
+
+  private async _getSigner(
+    accountAddress?: string,
+  ): Promise<Signer | JsonRpcSigner> {
+    if (this.signer) {
+      return this.signer;
+    }
+
+    if (!("send" in this.provider)) {
+      throw new Error(
+        "Either signer or JsonRpcProvider with signer must be provided",
+      );
+    }
+
+    return (this.provider as JsonRpcProvider).getSigner(accountAddress);
   }
 }
