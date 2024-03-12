@@ -24,6 +24,7 @@ import {
   Side,
   OfferType,
   LienStatus,
+  Criteria,
 } from "./types";
 
 import type {
@@ -241,7 +242,7 @@ export class Kettle {
     );
 
     if (!balance) {
-      throw new Error("Insufficient balance")
+      throw new Error("Insufficient collateral balance")
     }
 
     const approvalActions = [];
@@ -353,6 +354,8 @@ export class Kettle {
     return [...approvalActions, createOfferAction];
   }
 
+  // call order book (getLoanOffer) with hash to get the actual loan offer
+  // - { offer, signature }
   public async takeLoanOffer(
     offer: LoanOffer, 
     signature: string
@@ -460,6 +463,14 @@ export class Kettle {
     return [...approvalActions, takeOfferAction];
   }
 
+  /**
+   * When the buyer wants to buy asset from seller
+   * Ask Offer is made from the seller
+   * Buyer is the taker
+   * @param offer 
+   * @param signature 
+   * @returns 
+   */
   public async takeAskOffer(
     offer: MarketOffer, 
     signature: string
@@ -513,6 +524,14 @@ export class Kettle {
     return [...approvalActions, takeOfferAction];
   }
 
+  /**
+   * The Seller wants to sell to a buyer
+   * BidOffer is made from the buyer
+   * Seller is the taker
+   * @param offer 
+   * @param signature 
+   * @returns 
+   */
   public async takeBidOffer(
     offer: MarketOffer, 
     signature: string
@@ -641,14 +660,10 @@ export class Kettle {
     offerer: string,
     {
       collection,
-      criteria,
       itemType,
       identifier,
-      size,
       currency,
-      totalAmount,
-      maxAmount,
-      minAmount,
+      amount,
       rate,
       defaultRate,
       fee,
@@ -661,17 +676,17 @@ export class Kettle {
 
     const collateral: Collateral = {
       collection,
-      criteria,
+      criteria: Criteria.SIMPLE,
       itemType,
       identifier,
-      size,
+      size: 1,
     };
 
     const terms: LoanOfferTerms = {
       currency,
-      totalAmount,
-      maxAmount,
-      minAmount,
+      totalAmount: amount,
+      maxAmount: amount,
+      minAmount: amount,
       rate,
       defaultRate,
       duration,
@@ -701,10 +716,8 @@ export class Kettle {
     offerer: string,
     {
       collection,
-      criteria,
       itemType,
       identifier,
-      size,
       currency,
       amount,
       rate,
@@ -719,10 +732,10 @@ export class Kettle {
 
     const collateral: Collateral = {
       collection,
-      criteria,
+      criteria: Criteria.SIMPLE,
       itemType,
       identifier,
-      size,
+      size: 1,
     };
 
     const terms: BorrowOfferTerms = {
@@ -758,10 +771,8 @@ export class Kettle {
     offerer: string,
     {
       collection,
-      criteria,
       itemType,
       identifier,
-      size,
       currency,
       amount,
       withLoan,
@@ -772,12 +783,13 @@ export class Kettle {
       expiration
     }: CreateMarketOfferInput,
   ): Promise<MarketOffer> {
+
     const collateral: Collateral = {
       collection,
-      criteria,
+      criteria: Criteria.SIMPLE,
       itemType,
       identifier,
-      size,
+      size: 1,
     };
 
     const terms: MarketOfferTerms = {

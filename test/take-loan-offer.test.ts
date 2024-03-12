@@ -28,14 +28,10 @@ describeWithFixture("take a loan offer", (fixture) => {
 
     const steps = await kettle.connect(signer).createLoanOffer({
       collection: await testErc721.getAddress(),
-      criteria: 0,
-      itemType: 0,
+      itemType: ItemType.ERC721,
       identifier: tokenId,
-      size: 1,
       currency: await testErc20.getAddress(),
-      totalAmount: principal,
-      maxAmount: principal,
-      minAmount: principal,
+      amount: principal,
       rate: parseUnits("0.1", 4),
       defaultRate: parseUnits("0.1", 4),
       fee: parseUnits("0.1", 4),

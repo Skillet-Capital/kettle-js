@@ -1,10 +1,9 @@
 import { time } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 
 import { expect } from "chai";
-import { parseEther, parseUnits } from "ethers";
-import { ethers } from "hardhat";
+import { parseUnits } from "ethers";
 
-import { ItemType, MAX_INT, ADDRESS_ZERO, BYTES_ZERO } from "../src/constants";
+import { ItemType } from "../src/constants";
 import { ApprovalAction, CreateOrderAction, TakeOrderAction } from "../src/types";
 
 import { describeWithFixture } from "./utils/setup";
@@ -30,10 +29,8 @@ describeWithFixture("take a ask offer", (fixture) => {
 
     const steps = await kettle.createAskOffer({
       collection: await testErc721.getAddress(),
-      criteria: 0,
-      itemType: 0,
+      itemType: ItemType.ERC721,
       identifier: 1,
-      size: 1,
       currency: await testErc20.getAddress(),
       amount,
       fee: parseUnits("0.1", 4),

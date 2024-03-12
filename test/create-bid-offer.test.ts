@@ -1,10 +1,10 @@
 import { time } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 
 import { expect } from "chai";
-import { parseEther, parseUnits } from "ethers";
-import { ethers } from "hardhat";
+import { parseUnits } from "ethers";
 
-import { ItemType, MAX_INT, ADDRESS_ZERO, BYTES_ZERO } from "../src/constants";
+import { MarketOffer, OfferType } from "../src/types";
+import { ItemType, ADDRESS_ZERO } from "../src/constants";
 
 import { describeWithFixture } from "./utils/setup";
 import { ApprovalAction, CreateOrderAction } from "../src/types";
@@ -13,7 +13,7 @@ const MONTH_SECONDS = 30 * 24 * 60 * 60;
 
 describeWithFixture("create a bid offer", (fixture) => {
   it("should create a bid offer", async () => {
-    const { signer, kettle, testErc721, testErc20, testErc1155 } = fixture;
+    const { signer, taker, kettle, testErc721, testErc20, testErc1155 } = fixture;
 
     const principal = parseUnits("10000", 6);
 
@@ -21,10 +21,8 @@ describeWithFixture("create a bid offer", (fixture) => {
 
     const steps = await kettle.createBidOffer({
       collection: await testErc721.getAddress(),
-      criteria: 0,
-      itemType: 0,
+      itemType: ItemType.ERC721,
       identifier: 1,
-      size: 1,
       currency: await testErc20.getAddress(),
       amount: principal,
       fee: parseUnits("0.1", 4),
@@ -38,8 +36,14 @@ describeWithFixture("create a bid offer", (fixture) => {
     }
 
     const createStep = steps.find((s) => s.type === "create") as CreateOrderAction;
-    const { type, offer, signature } = await createStep.createOrder();
-    console.log({ type, offer, signature })
+    const create = await createStep.createOrder();
+
+    expect(create.type).to.equal(OfferType.MARKET_OFFER);
+    const offer = create.offer as MarketOffer;
+    const signature = create.signature;
+
+    expect(await kettle.validateMarketOfferSignature(offer.maker, offer, signature)).to.be.true;
+    expect(await kettle.validateMarketOfferSignature(await taker.getAddress(), offer, signature)).to.be.false;
 
   });
 });
