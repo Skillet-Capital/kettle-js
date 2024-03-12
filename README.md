@@ -6,7 +6,8 @@ import { ItemType, Kettle } from 'kettle-core-js';
 import { parseUnits } from '@ethersproject/units';
 
 const MONTH_SECONDS = (365 * 24 * 60 * 60) / 12;
-const { fee, recipient } = DEFAULT_FEE_INPUTS;
+const FEE = "250";
+const FEE_RECIPIENT = "0xAf810826679816a0330F786f0589D224DdEd24Ff";
 ```
 
 ### Create Loan Offer
@@ -14,6 +15,8 @@ After using the imports from above, create and sign a new loan offer.
 Loan Offers are created by lenders to be taken by borrowers to start a new loan.
 
 ```js
+// amount is $1,000 and rate is 20%
+// we need to parseUnits(1000, 18) for amount and parseUnits(20, 2) for rate
 const { rate, amount, duration, expiration } = inputs;
 
 const loanOffer = {
@@ -24,8 +27,8 @@ const loanOffer = {
   amount: parseUnits(amount, 18),
   rate: parseUnits(rate, 2),
   defaultRate: parseUnits(rate, 2),
-  fee: parseUnits(fee, 2),
-  recipient: recipient,
+  fee: FEE,
+  recipient: FEE_RECIPIENT,
   duration: duration,
   gracePeriod: MONTH_SECONDS,
   expiration: expiration
@@ -55,8 +58,8 @@ const borrowOffer = {
   amount: parseUnits(amount, 18),
   rate: parseUnits(rate, 2),
   defaultRate: parseUnits(rate, 2),
-  fee: parseUnits(fee, 2),
-  recipient: recipient,
+  fee: FEE,
+  recipient: FEE_RECIPIENT,
   duration: duration,
   gracePeriod: MONTH_SECONDS,
   expiration: expiration
@@ -84,8 +87,8 @@ const askOffer = {
   identifier: 1,
   currency: '0x...',
   amount: parseUnits(amount, 18),
-  fee: parseUnits(fee, 2),
-  recipient: recipient,
+  fee: FEE,
+  recipient: FEE_RECIPIENT,
   expiration: expiration
 }
 
@@ -111,8 +114,8 @@ const bidOffer = {
   identifier: 1,
   currency: '0x...',
   amount: parseUnits(amount, 18),
-  fee: parseUnits(fee, 2),
-  recipient: recipient,
+  fee: FEE,
+  recipient: FEE_RECIPIENT,
   expiration: expiration
 }
 
