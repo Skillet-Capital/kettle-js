@@ -44,9 +44,8 @@ export type LoanOfferTerms = {
   minAmount: string | number | bigint;
   rate: string | number | bigint;
   defaultRate: string | number | bigint;
-  period: string | number | bigint;
+  duration: string | number | bigint;
   gracePeriod: string | number | bigint;
-  installments: string | number | bigint;
 }
 
 export type LoanOffer = {
@@ -64,9 +63,8 @@ export type BorrowOfferTerms = {
   amount: string | number | bigint;
   rate: string | number | bigint;
   defaultRate: string | number | bigint;
-  period: string | number | bigint;
+  duration: string | number | bigint;
   gracePeriod: string | number | bigint;
-  installments: string | number | bigint;
 }
 
 export type BorrowOffer = {
@@ -115,11 +113,9 @@ export type Lien = {
   rate: string | number | bigint;
   defaultRate: string | number | bigint;
   fee: string | number | bigint;
-  period: string | number | bigint;
+  duration: string | number | bigint;
   gracePeriod: string | number | bigint;
-  installments: string | number | bigint;
   startTime: string | number | bigint;
-  state: LienState;
 }
 
 export type CreateLoanOfferInput = {
@@ -136,9 +132,8 @@ export type CreateLoanOfferInput = {
   defaultRate: string | number | bigint;
   fee: string | number | bigint;
   recipient: string;
-  period: string | number | bigint;
+  duration: string | number | bigint;
   gracePeriod: string | number | bigint;
-  installments: string | number | bigint;
   expiration: string | number | bigint;
 }
 
@@ -154,9 +149,8 @@ export type CreateBorrowOfferInput = {
   defaultRate: string | number | bigint;
   fee: string | number | bigint;
   recipient: string;
-  period: string | number | bigint;
+  duration: string | number | bigint;
   gracePeriod: string | number | bigint;
-  installments: string | number | bigint;
   expiration: string | number | bigint;
 }
 
@@ -217,6 +211,16 @@ export type ApprovalAction = {
 export type TakeOrderAction = {
   type: "take";
   takeOrder: () => Promise<ethers.TransactionResponse>;
+}
+
+export type RepayAction = {
+  type: "repay";
+  repay: () => Promise<ethers.TransactionResponse>;
+}
+
+export type ClaimAction = {
+  type: "claim";
+  claim: () => Promise<ethers.TransactionResponse>;
 }
 
 export type CancelOrderAction = {

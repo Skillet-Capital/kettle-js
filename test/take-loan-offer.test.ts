@@ -40,9 +40,8 @@ describeWithFixture("take a loan offer", (fixture) => {
       defaultRate: parseUnits("0.1", 4),
       fee: parseUnits("0.1", 4),
       recipient: await recipient.getAddress(),
-      period: MONTH_SECONDS,
+      duration: MONTH_SECONDS,
       gracePeriod: MONTH_SECONDS,
-      installments: 12,
       expiration: await time.latest() + MONTH_SECONDS,
     });
 
