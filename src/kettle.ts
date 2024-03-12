@@ -47,6 +47,8 @@ import type {
   ApprovalAction,
   OrderWithSignatureAndType,
   TakeOrderAction,
+  RepayAction,
+  ClaimAction,
   CancelOrderAction,
 } from "./types";
 
@@ -563,11 +565,65 @@ export class Kettle {
     return [...approvalActions, takeOfferAction];
   }
 
-  public async cancelOffer(
-    offer: LoanOffer | MarketOffer
-  ): Promise<CancelOrderAction> {
+  public async repay(
+    lienId: bigint | number,
+    lien: Lien
+  ): Promise<(ApprovalAction | RepayAction)[]>{
     const signer = this.signer;
-    const offerer = await signer!.getAddress();
+    const taker = await signer!.getAddress();
+    const operator = await this.contract.getAddress();
+
+    const allowance = await currencyAllowance(
+      taker,
+      lien.currency,
+      operator,
+      this.provider
+    );
+
+    const approvalActions = [];
+    const { debt } = await this.contract.currentDebtAmount(lien);
+    if (allowance < debt) {
+      const allowanceAction = await getAllowanceAction(
+          lien.currency,
+          operator,
+          signer!
+        )
+      approvalActions.push(allowanceAction);
+    }
+
+    const repayAction = {
+      type: "repay",
+      repay: async () => {
+        return await this.contract.connect(signer).repay(lienId, lien)
+      }
+    } as const;
+
+    return [...approvalActions, repayAction];
+  }
+
+  public claim(
+    lienId: bigint | number,
+    lien: Lien
+  ): ClaimAction {
+    if (BigInt(lien.startTime) + BigInt(lien.duration) + BigInt(lien.gracePeriod) > getEpoch()) {
+      throw new Error("Lien is not defaulted");
+    }
+    const signer = this.signer;
+
+    const claimAction = {
+      type: "claim",
+      claim: async () => {
+        return await this.contract.connect(signer).repay(lienId, lien)
+      }
+    } as const;
+
+    return claimAction;
+  }
+
+  public cancelOffer(
+    offer: LoanOffer | MarketOffer
+  ): CancelOrderAction {
+    const signer = this.signer;
 
     return {
       type: "cancel",
@@ -577,54 +633,9 @@ export class Kettle {
     }
   }
 
-  // public async nextPayment(lien: Lien): Promise<PaymentState> {
-  //   const timestamp = getEpoch();
-
-  //   const { 
-  //     balance, 
-  //     principal, 
-  //     pastInterest,
-  //     pastFee,
-  //     currentInterest,
-  //     currentFee
-  //   } = await this.contract.payments(lien, false);
-
-  //   const paidThrough = BigInt(lien.startTime) + (BigInt(lien.state.installment) * BigInt(lien.period));
-  //   const endTime = BigInt(lien.startTime) + (BigInt(lien.period) * BigInt(lien.installments));
-  //   const lastInstallmentStartTime = BigInt(lien.startTime) + (BigInt(lien.period) * (BigInt(lien.installments) - BigInt(1)));
-    
-  //   if (timestamp < paidThrough) {
-  //     return {
-  //       status: LienStatus.CURRENT,
-  //       balance,
-
-  //     }
-
-  //   }
-  //   const delinquent: Payment = {
-  //       periodStart: paidThrough,
-  //       deadline: paidThrough + BigInt(lien.period) + BigInt(lien.gracePeriod),
-  //       principal: 0,
-  //       interest: pastInterest,
-  //       fee: pastFee
-  //   };
-
-
-
-
-
-  // }
-
-  // public async currentRepayment(lien: Lien): Promise<RepaymentState> {
-  //   const repayment = await this.contract.payments(lien, true);
-
-  //   return {
-  //     balance: repayment.balance,
-  //     principal: repayment.principal,
-  //     interest: repayment.currentInterest + repayment.pastInterest,
-  //     fee: repayment.currentFee + repayment.pastFee
-  //   }
-  // }
+  public async currentDebtAmount(lien: Lien) {
+    return this.contract.currentDebtAmount(lien);
+  }
 
   private async _formatLoanOffer(
     offerer: string,
@@ -642,9 +653,8 @@ export class Kettle {
       defaultRate,
       fee,
       recipient,
-      period,
+      duration,
       gracePeriod,
-      installments,
       expiration
     }: CreateLoanOfferInput,
   ): Promise<LoanOffer> {
@@ -664,9 +674,8 @@ export class Kettle {
       minAmount,
       rate,
       defaultRate,
-      period,
-      gracePeriod,
-      installments,
+      duration,
+      gracePeriod
     };
 
     const feeTerms: FeeTerms = {
@@ -702,9 +711,8 @@ export class Kettle {
       defaultRate,
       fee,
       recipient,
-      period,
+      duration,
       gracePeriod,
-      installments,
       expiration
     }: CreateBorrowOfferInput,
   ): Promise<BorrowOffer> {
@@ -722,9 +730,8 @@ export class Kettle {
       amount,
       rate,
       defaultRate,
-      period,
-      gracePeriod,
-      installments,
+      duration,
+      gracePeriod
     };
 
     const feeTerms: FeeTerms = {

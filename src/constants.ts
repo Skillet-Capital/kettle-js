@@ -25,9 +25,8 @@ export const LOAN_OFFER_TERMS_TYPE = [
   { name: "minAmount", type: "uint256" },
   { name: "rate", type: "uint256" },
   { name: "defaultRate", type: "uint256" },
-  { name: "period", type: "uint256" },
-  { name: "gracePeriod", type: "uint256" },
-  { name: "installments", type: "uint256" }
+  { name: "duration", type: "uint256" },
+  { name: "gracePeriod", type: "uint256" }
 ];
 
 export const BORROW_OFFER_TERMS_TYPE = [
@@ -35,9 +34,8 @@ export const BORROW_OFFER_TERMS_TYPE = [
   { name: "amount", type: "uint256" },
   { name: "rate", type: "uint256" },
   { name: "defaultRate", type: "uint256" },
-  { name: "period", type: "uint256" },
-  { name: "gracePeriod", type: "uint256" },
-  { name: "installments", type: "uint256" }
+  { name: "duration", type: "uint256" },
+  { name: "gracePeriod", type: "uint256" }
 ];
 
 export const MARKET_OFFER_TERMS_TYPE = [

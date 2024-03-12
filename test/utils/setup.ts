@@ -37,10 +37,10 @@ export const describeWithFixture = (
     beforeEach(async () => {
       const [signer, taker, recipient] = await ethers.getSigners();
 
-      const FixedInterest = await ethers.getContractFactory(
-        "kettle_v3/contracts/models/FixedInterest.sol:FixedInterest"
+      const CompoundInterest = await ethers.getContractFactory(
+        "kettle_v3/contracts/models/CompoundInterest.sol:CompoundInterest"
       );
-      const fixedInterest = await FixedInterest.deploy();
+      const compoundInterest = await CompoundInterest.deploy();
 
       const Distributions = await ethers.getContractFactory(
         "kettle_v3/contracts/lib/Distributions.sol:Distributions"
@@ -51,7 +51,7 @@ export const describeWithFixture = (
         "kettle_v3/contracts/Kettle.sol:Kettle",
         {
           libraries: {
-            FixedInterest: fixedInterest.target,
+            CompoundInterest: compoundInterest.target,
             Distributions: distributions.target,
           },
         }
@@ -62,9 +62,8 @@ export const describeWithFixture = (
       );
       const lenderReceipt = await LenderReceiptFactory.deploy();
 
-      const kettleContract = (await KettleFactory.deploy(
-        await lenderReceipt.getAddress(),
-      )) as KettleContract;
+      const kettleContract = await KettleFactory.deploy(lenderReceipt) as KettleContract;
+
       await kettleContract.waitForDeployment();
 
       await lenderReceipt.setSupplier(kettleContract, 1);
@@ -74,15 +73,15 @@ export const describeWithFixture = (
         await kettleContract.getAddress(),
       );
 
-      const TestERC721 = await ethers.getContractFactory("TestERC721");
+      const TestERC721 = await ethers.getContractFactory("TestERC721") as TestERC721;
       const testErc721 = await TestERC721.deploy();
       await testErc721.waitForDeployment();
 
-      const TestERC1155 = await ethers.getContractFactory("TestERC1155");
+      const TestERC1155 = await ethers.getContractFactory("TestERC1155") as TestERC1155;
       const testErc1155 = await TestERC1155.deploy();
       await testErc1155.waitForDeployment();
 
-      const TestERC20 = await ethers.getContractFactory("TestERC20");
+      const TestERC20 = await ethers.getContractFactory("TestERC20") as TestERC20;
       const testErc20 = await TestERC20.deploy();
       await testErc20.waitForDeployment();
 
