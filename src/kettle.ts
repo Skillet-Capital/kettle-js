@@ -160,6 +160,7 @@ export class Kettle {
 
     const createOfferAction = {
       type: "create",
+      payload: await this.getLoanOfferPayload(offer),
       createOrder: async (): Promise<OrderWithSignatureAndType> => {
         const signature = await this.signLoanOffer(offer);
 
@@ -1059,6 +1060,18 @@ export class Kettle {
   ) {
     const message = await this.getMarketOfferMessageToSign(offer);
     return ethers.recoverAddress(message, signature) === maker;
+  }
+
+  public async getLoanOfferPayload(offer: LoanOffer) {
+    const domain = await this._getDomainData();
+
+    return JSON.stringify(
+      TypedDataEncoder.getPayload(
+        domain, 
+        LOAN_OFFER_TYPE,
+        offer
+      )
+    )
   }
 
   public async signLoanOffer(
