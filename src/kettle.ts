@@ -1061,30 +1061,42 @@ export class Kettle {
     return ethers.recoverAddress(message, signature) === maker;
   }
 
-  public async signLoanOffer(offer: LoanOffer) {
+  public async signLoanOffer(
+    offer: LoanOffer,
+    accountAddress?: string
+  ) {
+    const signer = await this._getSigner(accountAddress);
     const domain = await this._getDomainData();
     
-    return this.signer!.signTypedData(
+    return signer.signTypedData(
       domain, 
       LOAN_OFFER_TYPE, 
       offer
     );
   }
 
-  public async signBorrowOffer(offer: BorrowOffer) {
+  public async signBorrowOffer(
+    offer: BorrowOffer,
+    accountAddress?: string
+  ) {
+    const signer = await this._getSigner(accountAddress);
     const domain = await this._getDomainData();
 
-    return this.signer!.signTypedData(
+    return signer.signTypedData(
       domain, 
       BORROW_OFFER_TYPE,
       offer
     );
   }
 
-  public async signMarketOffer(offer: MarketOffer) {
+  public async signMarketOffer(
+    offer: MarketOffer,
+    accountAddress?: string
+  ) {
+    const signer = await this._getSigner(accountAddress);
     const domain = await this._getDomainData();
 
-    return this.signer!.signTypedData(
+    return signer.signTypedData(
       domain, 
       MARKET_OFFER_TYPE,
       offer
