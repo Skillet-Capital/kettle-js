@@ -160,6 +160,8 @@ export class Kettle {
 
     const createOfferAction = {
       type: "create",
+      offerType: OfferType.LOAN_OFFER,
+      offer,
       payload: await this.getLoanOfferPayload(offer),
       createOrder: async (): Promise<OrderWithSignatureAndType> => {
         const signature = await this.signLoanOffer(offer);
@@ -215,6 +217,9 @@ export class Kettle {
 
     const createOfferAction = {
       type: "create",
+      offerType: OfferType.BORROWER_OFFER,
+      offer,
+      payload: await this.getBorrowOfferPayload(offer),
       createOrder: async (): Promise<OrderWithSignatureAndType> => {
         const signature = await this.signBorrowOffer(offer);
 
@@ -290,6 +295,9 @@ export class Kettle {
 
     const createOfferAction = {
       type: "create",
+      offerType: OfferType.MARKET_OFFER,
+      offer,
+      payload: await this.getMarketOfferPayload(offer),
       createOrder: async (): Promise<OrderWithSignatureAndType> => {
         const signature = await this.signMarketOffer(offer);
 
@@ -345,6 +353,9 @@ export class Kettle {
 
     const createOfferAction = {
       type: "create",
+      offerType: OfferType.MARKET_OFFER,
+      offer,
+      payload: await this.getMarketOfferPayload(offer),
       createOrder: async (): Promise<OrderWithSignatureAndType> => {
         const signature = await this.signMarketOffer(offer);
 
@@ -1068,6 +1079,26 @@ export class Kettle {
     return TypedDataEncoder.getPayload(
       domain, 
       LOAN_OFFER_TYPE,
+      offer
+    )
+  }
+
+  public async getBorrowOfferPayload(offer: BorrowOffer) {
+    const domain = await this._getDomainData();
+
+    return TypedDataEncoder.getPayload(
+      domain, 
+      BORROW_OFFER_TYPE,
+      offer
+    )
+  }
+
+  public async getMarketOfferPayload(offer: MarketOffer) {
+    const domain = await this._getDomainData();
+
+    return TypedDataEncoder.getPayload(
+      domain, 
+      MARKET_OFFER_TYPE,
       offer
     )
   }
