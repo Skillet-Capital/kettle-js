@@ -1065,12 +1065,10 @@ export class Kettle {
   public async getLoanOfferPayload(offer: LoanOffer) {
     const domain = await this._getDomainData();
 
-    return JSON.stringify(
-      TypedDataEncoder.getPayload(
-        domain, 
-        LOAN_OFFER_TYPE,
-        offer
-      )
+    return TypedDataEncoder.getPayload(
+      domain, 
+      LOAN_OFFER_TYPE,
+      offer
     )
   }
 
