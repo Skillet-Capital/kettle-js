@@ -192,6 +192,9 @@ export type OrderWithSignatureAndType = {
 
 export type CreateOrderAction = {
   type: "create";
+  offerType: OfferType;
+  offer: LoanOffer | BorrowOffer | MarketOffer;
+  payload: any;
   createOrder: () => Promise<OrderWithSignatureAndType>;
 }
 
