@@ -731,7 +731,7 @@ export class Kettle {
       fee: feeTerms,
       expiration,
       salt,
-      nonce
+      nonce: nonce.toString()
     };
   }
 
@@ -785,7 +785,7 @@ export class Kettle {
       fee: feeTerms,
       expiration,
       salt,
-      nonce
+      nonce: nonce.toString()
     };
   }
 
@@ -839,7 +839,7 @@ export class Kettle {
       fee: feeTerms,
       expiration,
       salt,
-      nonce
+      nonce: nonce.toString()
     };
   }
 
