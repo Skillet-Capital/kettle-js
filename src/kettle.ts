@@ -77,6 +77,10 @@ import {
   getEpoch
 } from "./utils/time";
 
+import {
+  equalAddresses
+} from "./utils/equalAddresses";
+
 export class Kettle {
 
   public contract: KettleContract;
@@ -1052,7 +1056,8 @@ export class Kettle {
     signature: string
   ) {
     const message = await this.getLoanOfferMessageToSign(offer);
-    return ethers.recoverAddress(message, signature) === maker;
+    const recovered = ethers.recoverAddress(message, signature);
+    return equalAddresses(recovered, maker);
   }
 
   public async validateBorrowOfferSignature(
@@ -1061,7 +1066,8 @@ export class Kettle {
     signature: string
   ) {
     const message = await this.getBorrowOfferMessageToSign(offer);
-    return ethers.recoverAddress(message, signature) === maker;
+    const recovered = ethers.recoverAddress(message, signature);
+    return equalAddresses(recovered, maker);
   }
 
   public async validateMarketOfferSignature(
@@ -1070,7 +1076,8 @@ export class Kettle {
     signature: string
   ) {
     const message = await this.getMarketOfferMessageToSign(offer);
-    return ethers.recoverAddress(message, signature) === maker;
+    const recovered = ethers.recoverAddress(message, signature);
+    return equalAddresses(recovered, maker);
   }
 
   public async getLoanOfferPayload(offer: LoanOffer) {
