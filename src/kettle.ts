@@ -666,7 +666,7 @@ export class Kettle {
   }
 
   public async cancelOffer(
-    offer: LoanOffer | MarketOffer,
+    salt: string,
     accountAddress?: string
   ): Promise<CancelOrderAction> {
     const signer = await this._getSigner(accountAddress);
@@ -674,7 +674,7 @@ export class Kettle {
     return {
       type: "cancel",
       cancelOrder: () => {
-        return this.contract.connect(signer).cancelOffer(offer.salt);
+        return this.contract.connect(signer).cancelOffer(salt);
       }
     }
   }
