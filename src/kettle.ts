@@ -255,6 +255,20 @@ export class Kettle {
     );
 
     if (!balance) {
+      if (input.lien) {
+        if (!equalAddresses(input.lien.borrower, offer.maker)) {
+          throw new Error("Seller is not the borrower");
+        }
+
+        if (BigInt(input.lien.startTime) + BigInt(input.lien.duration) + BigInt(input.lien.gracePeriod) < getEpoch()) {
+          throw new Error("Lien is defaulted");
+        }
+
+        const { debt } = await this.contract.currentDebtAmount(input.lien);
+        if (debt > BigInt(offer.terms.amount)) {
+          throw new Error("Ask does not cover debt");
+        }
+      }
       throw new Error("Insufficient collateral balance")
     }
 
