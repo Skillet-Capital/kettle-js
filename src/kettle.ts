@@ -602,6 +602,63 @@ export class Kettle {
     return [...approvalActions, takeOfferAction];
   }
 
+  public async takeAskOfferInLien(
+    lienId: bigint | number,
+    lien: Lien,
+    offer: MarketOffer, 
+    signature: string,
+    accountAddress?: string
+  ): Promise<(ApprovalAction | TakeOrderAction)[]> {
+    const signer = await this._getSigner(accountAddress);
+    const taker = accountAddress ?? (await signer.getAddress());
+    const operator = await this.contract.getAddress();
+
+    await this.validateAskOffer(offer, lien);
+
+    const balance = await currencyBalance(
+      taker,
+      offer.terms.currency,
+      offer.terms.amount,
+      this.provider
+    );
+
+    if (!balance) {
+      throw new Error("Insufficient buyer balance")
+    }
+
+    const allowance = await currencyAllowance(
+      taker,
+      offer.terms.currency,
+      operator,
+      this.provider
+    );
+
+    const approvalActions = [];
+    if (allowance < BigInt(offer.terms.amount)) {
+      const allowanceAction = await getAllowanceAction(
+          offer.terms.currency,
+          operator,
+          signer!
+        )
+      approvalActions.push(allowanceAction);
+    }
+
+    const takeOfferAction = {
+      type: "take",
+      takeOrder: async () => {
+        return await this.contract.connect(signer).buyInLien(
+          lienId,
+          lien,
+          offer,
+          signature,
+          []
+        )
+      }
+    } as const;
+
+    return [...approvalActions, takeOfferAction];
+  }
+
   /**
    * The Seller wants to sell to a buyer
    * BidOffer is made from the buyer
@@ -1036,7 +1093,7 @@ export class Kettle {
     }
   }
 
-  public async validateAskOffer(offer: MarketOffer) {
+  public async validateAskOffer(offer: MarketOffer, lien?: Lien) {
     const operator = await this.contract.getAddress();
 
     const sellerBalance = await collateralBalance(
@@ -1056,7 +1113,22 @@ export class Kettle {
       this.provider
     );
 
+    // if seller does not own the collatera, the lien must own the collateral
     if (!sellerAllowance) {
+      if (lien) {
+        if (lien.borrower != offer.maker) {
+          throw new Error("Seller is not the borrower");
+        }
+
+        if (BigInt(lien.startTime) + BigInt(lien.duration) + BigInt(lien.gracePeriod) < getEpoch()) {
+          throw new Error("Lien is defaulted");
+        }
+
+        const { debt } = await this.contract.currentDebtAmount(lien);
+        if (debt > BigInt(offer.terms.amount)) {
+          throw new Error("Ask does not cover debt");
+        }
+      }
       throw new Error("Seller has not approved collateral")
     }
 
