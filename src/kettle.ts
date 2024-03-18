@@ -1055,7 +1055,7 @@ export class Kettle {
   }
 
   public async validateRepay(lien: Lien) {
-    if (BigInt(lien.startTime) + BigInt(lien.duration) + BigInt(lien.gracePeriod) > getEpoch()) {
+    if (BigInt(lien.startTime) + BigInt(lien.duration) + BigInt(lien.gracePeriod) < getEpoch()) {
       throw new Error("Lien is defaulted");
     }
 
@@ -1082,7 +1082,7 @@ export class Kettle {
       throw new Error("Invalid borrower");
     }
 
-    if (BigInt(lien.startTime) + BigInt(lien.duration) + BigInt(lien.gracePeriod) > getEpoch()) {
+    if (BigInt(lien.startTime) + BigInt(lien.duration) + BigInt(lien.gracePeriod) < getEpoch()) {
       throw new Error("Lien is defaulted");
     }
 
