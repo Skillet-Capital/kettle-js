@@ -663,6 +663,59 @@ export class Kettle {
     return [...approvalActions, takeOfferAction];
   }
 
+  public async takeBidOfferInLien(
+    lienId: bigint | number,
+    lien: Lien,
+    offer: MarketOffer, 
+    signature: string,
+    accountAddress?: string
+  ): Promise<(ApprovalAction | TakeOrderAction)[]> {
+    const signer = await this._getSigner(accountAddress);
+    const taker = accountAddress ?? (await signer.getAddress());
+    const operator = await this.contract.getAddress();
+
+    await this.validateBidOffer(offer);
+    await this.validateSellInLien(taker, lien, offer);
+
+    const { debt } = await this.contract.currentDebtAmount(lien);
+
+    const approvalActions = [];
+    if (debt > BigInt(offer.terms.amount)) {
+      const diff = debt - BigInt(offer.terms.amount);
+
+      const allowance = await currencyAllowance(
+        taker,
+        offer.terms.currency,
+        operator,
+        this.provider
+      );
+  
+      if (allowance < BigInt(diff)) {
+        const allowanceAction = await getAllowanceAction(
+            offer.terms.currency,
+            operator,
+            signer!
+          )
+        approvalActions.push(allowanceAction);
+      }
+    }
+
+    const takeOfferAction = {
+      type: "take",
+      takeOrder: async () => {
+        return await this.contract.connect(signer).sellInLien(
+          lienId,
+          lien,
+          offer,
+          signature,
+          []
+        )
+      }
+    } as const;
+
+    return [...approvalActions, takeOfferAction];
+  }
+
   public async repay(
     lienId: bigint | number,
     lien: Lien,
@@ -1090,6 +1143,37 @@ export class Kettle {
 
     if (debt > BigInt(offer.terms.maxAmount)) {
       const diff = debt - BigInt(offer.terms.maxAmount);
+
+      const borrowerBalance = await currencyBalance(
+        lien.borrower,
+        lien.currency,
+        diff,
+        this.provider
+      );
+
+      if (!borrowerBalance) {
+        throw new Error("Insufficient borrower balance")
+      }
+    }
+  }
+
+  public async validateSellInLien(
+    taker: string,
+    lien: Lien,
+    offer: MarketOffer
+  ) {
+    if (!equalAddresses(taker, lien.borrower)) {
+      throw new Error("Invalid borrower");
+    }
+
+    if (BigInt(lien.startTime) + BigInt(lien.duration) + BigInt(lien.gracePeriod) < getEpoch()) {
+      throw new Error("Lien is defaulted");
+    }
+
+    const { debt } = await this.contract.currentDebtAmount(lien);
+
+    if (debt > BigInt(offer.terms.amount)) {
+      const diff = debt - BigInt(offer.terms.amount);
 
       const borrowerBalance = await currencyBalance(
         lien.borrower,
