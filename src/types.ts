@@ -160,6 +160,7 @@ export type CreateMarketOfferInput = {
   fee: string | number | bigint;
   recipient: string;
   expiration: string | number | bigint;
+  lien?: Lien;
 }
 
 export type Payment = {
