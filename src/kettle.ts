@@ -617,6 +617,8 @@ export class Kettle {
     const taker = accountAddress ?? (await signer.getAddress());
     const operator = await this.contract.getAddress();
 
+    await this.validateRepay(lien);
+
     const allowance = await currencyAllowance(
       taker,
       lien.currency,
@@ -994,6 +996,25 @@ export class Kettle {
     const nonce = await this.contract.nonces(offer.maker);
     if (offer.nonce != nonce) {
       throw new Error("Invalid nonce");
+    }
+  }
+
+  public async validateRepay(lien: Lien) {
+    if (BigInt(lien.startTime) + BigInt(lien.duration) + BigInt(lien.gracePeriod) > getEpoch()) {
+      throw new Error("Lien is defaulted");
+    }
+
+    const { debt } = await this.contract.currentDebtAmount(lien);
+
+    const borrowerBalance = await currencyBalance(
+      lien.borrower,
+      lien.currency,
+      debt,
+      this.provider
+    );
+
+    if (!borrowerBalance) {
+      throw new Error("Insufficient borrower balance")
     }
   }
 
