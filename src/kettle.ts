@@ -1116,7 +1116,7 @@ export class Kettle {
     // if seller does not own the collatera, the lien must own the collateral
     if (!sellerAllowance) {
       if (lien) {
-        if (lien.borrower != offer.maker) {
+        if (!equalAddresses(lien.borrower, offer.maker)) {
           throw new Error("Seller is not the borrower");
         }
 
