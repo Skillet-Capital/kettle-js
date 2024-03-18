@@ -256,6 +256,14 @@ export class Kettle {
 
     if (!balance) {
       if (input.lien) {
+        if (!equalAddresses(input.lien.collection, offer.collateral.collection)) {
+          throw new Error("Lien collection does not match offer collection");
+        }
+
+        if (input.lien.tokenId !== offer.collateral.identifier) {
+          throw new Error("Lien tokenId does not match offer tokenId");
+        }
+
         if (!equalAddresses(input.lien.borrower, offer.maker)) {
           throw new Error("Seller is not the borrower");
         }
@@ -274,20 +282,22 @@ export class Kettle {
 
     const approvalActions = [];
 
-    const approvals = await collateralApprovedForAll(
-      offerer,
-      offer.collateral,
-      operator,
-      this.provider
-    );
-
-    if (!approvals) {
-      const approvalAction = await getApprovalAction(
-          offer.collateral.collection,
-          operator,
-          signer!
-        )
-      approvalActions.push(approvalAction);
+    if (!input.lien) {
+      const approvals = await collateralApprovedForAll(
+        offerer,
+        offer.collateral,
+        operator,
+        this.provider
+      );
+  
+      if (!approvals) {
+        const approvalAction = await getApprovalAction(
+            offer.collateral.collection,
+            operator,
+            signer!
+          )
+        approvalActions.push(approvalAction);
+      }
     }
 
     const allowance = await currencyAllowance(
@@ -1116,20 +1126,17 @@ export class Kettle {
       this.provider
     );
 
-    if (!sellerBalance) {
-      throw new Error("Seller does not own collateral")
-    }
-
-    const sellerAllowance = await collateralApprovedForAll(
-      offer.maker,
-      offer.collateral,
-      operator,
-      this.provider
-    );
-
     // if seller does not own the collatera, the lien must own the collateral
-    if (!sellerAllowance) {
+    if (!sellerBalance) {
       if (lien) {
+        if (!equalAddresses(lien.collection, offer.collateral.collection)) {
+          throw new Error("Lien collection does not match offer collection");
+        }
+
+        if (lien.tokenId != offer.collateral.identifier) {
+          throw new Error("Lien tokenId does not match offer tokenId");
+        }
+
         if (!equalAddresses(lien.borrower, offer.maker)) {
           throw new Error("Seller is not the borrower");
         }
@@ -1143,7 +1150,20 @@ export class Kettle {
           throw new Error("Ask does not cover debt");
         }
       }
-      throw new Error("Seller has not approved collateral")
+      throw new Error("Seller does not own collateral")
+    }
+
+    const sellerAllowance = await collateralApprovedForAll(
+      offer.maker,
+      offer.collateral,
+      operator,
+      this.provider
+    );
+
+    if (!sellerAllowance) {
+      if (!lien) {
+        throw new Error("Seller has not approved collateral")
+      }
     }
 
     const cancelled = await this.contract.cancelledOrFulfilled(offer.maker, offer.salt);
