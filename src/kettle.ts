@@ -276,8 +276,9 @@ export class Kettle {
         if (debt > BigInt(offer.terms.amount)) {
           throw new Error("Ask does not cover debt");
         }
+      } else {
+        throw new Error("Insufficient collateral balance")
       }
-      throw new Error("Insufficient collateral balance")
     }
 
     const approvalActions = [];
@@ -1149,8 +1150,9 @@ export class Kettle {
         if (debt > BigInt(offer.terms.amount)) {
           throw new Error("Ask does not cover debt");
         }
+      } else {
+        throw new Error("Seller does not own collateral")
       }
-      throw new Error("Seller does not own collateral")
     }
 
     const sellerAllowance = await collateralApprovedForAll(
