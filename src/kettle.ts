@@ -841,7 +841,7 @@ export class Kettle {
     lienId: bigint | number,
     lien: Lien,
     accountAddress?: string
-  ): Promise<ClaimAction> {
+  ): Promise<ClaimAction[]> {
     if (BigInt(lien.startTime) + BigInt(lien.duration) + BigInt(lien.gracePeriod) > getEpoch()) {
       throw new Error("Lien is not defaulted");
     }
@@ -854,21 +854,23 @@ export class Kettle {
       }
     } as const;
 
-    return claimAction;
+    return [claimAction];
   }
 
   public async cancelOffer(
     salt: string,
     accountAddress?: string
-  ): Promise<CancelOrderAction> {
+  ): Promise<CancelOrderAction[]> {
     const signer = await this._getSigner(accountAddress);
 
-    return {
+    const cancelAction = {
       type: "cancel",
       cancelOrder: () => {
         return this.contract.connect(signer).cancelOffer(salt);
       }
-    }
+    } as const;
+
+    return [cancelAction];
   }
 
   public async currentDebtAmount(lien: Lien) {
