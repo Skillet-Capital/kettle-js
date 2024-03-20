@@ -1131,7 +1131,7 @@ export class Kettle {
       })
     ];
 
-    console.log("callContext", callContext);
+    console.log(JSON.stringify(callContext, null, 2));
 
     const results: ContractCallResults = await multicall.call(callContext);
 
