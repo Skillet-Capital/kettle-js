@@ -10,6 +10,10 @@ import {
 } from "ethers";
 
 import {
+  BigNumber
+} from "@ethersproject/bignumber"
+
+import {
   Multicall,
   ContractCallResults,
   ContractCallContext,
@@ -1230,11 +1234,11 @@ export class Kettle {
           hash: offer.hash,
           lender,
           currency,
-          lenderBalance,
-          lenderAllowance,
-          amountTaken,
-          cancelledOrFulfilled,
-          nonce
+          lenderBalance: BigNumber.from(lenderBalance).toString(),
+          lenderAllowance: BigNumber.from(lenderAllowance).toString(),
+          amountTaken: BigNumber.from(amountTaken).toString(),
+          cancelledOrFulfilled: BigNumber.from(cancelledOrFulfilled).toString(),
+          nonce: BigNumber.from(nonce).toString()
         });
 
         return {
