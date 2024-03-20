@@ -10,6 +10,12 @@ import {
 } from "ethers";
 
 import {
+  Multicall,
+  ContractCallResults,
+  ContractCallContext,
+} from 'ethereum-multicall';
+
+import {
   KETTLE_CONTRACT_NAME,
   KETTLE_CONTRACT_VERSION,
   LOAN_OFFER_TYPE,
@@ -51,6 +57,7 @@ import type {
   RepayAction,
   ClaimAction,
   CancelOrderAction,
+  LoanOfferWithHash,
 } from "./types";
 
 import {
@@ -1039,6 +1046,92 @@ export class Kettle {
       salt,
       nonce: nonce.toString()
     };
+  }
+
+  public async validateLoanOffers(offers: LoanOfferWithHash[]) {
+    const multicall = new Multicall({
+      ethersProvider: this.provider,
+      tryAggregate: true
+    });
+
+    interface LenderCurrencies {
+      [currency: string]: string[];
+    }
+
+    const lenderCurrencies: { [currency: string]: string[] } = offers.reduce(
+      (acc: LenderCurrencies, offer) => {
+        const { lender, terms } = offer;
+        const { currency } = terms;
+      
+        if (!acc[currency]) {
+          acc[currency] = [lender];
+        } else {
+          acc[currency].push(lender);
+        }
+      
+        return acc;
+      }, 
+      {}
+    );
+
+
+    const callContext: ContractCallContext[] = [
+      ...Object.entries(lenderCurrencies).map(([currency, lenders]) => ({
+        reference: currency,
+        contractAddress: currency,
+        abi: [
+          'function balanceOf(address) view returns (uint256)', 
+          'function allowance(address,address) view returns (uint256)'
+        ],
+        calls: [
+          ...lenders.map((lender) => ({
+            reference: lender,
+            methodName: 'balanceOf',
+            methodParameters: [lender]
+          })),
+          ...lenders.map((lender) => ({
+            reference: lender,
+            methodName: 'allowance',
+            methodParameters: [lender, this.contractAddress]
+          }))
+        ]
+      })).flat(),
+      
+      ({
+        reference: "kettle",
+        contractAddress: this.contractAddress,
+        abi: [
+          'function amountTaken(bytes32) view returns (uint256)',
+          'function cancelledOrFulfilled(address,uint256) view returns (bool)',
+          'function nonces(address) view returns (uint256)'
+        ],
+        calls: [
+          ...offers.map(
+            (offer) => ({
+              reference: offer.hash,
+              methodName: "amountTaken",
+              methodParameters: [offer.hash]
+            }),
+          ),
+          ...offers.map(
+            (offer) => ({
+              reference: offer.lender,
+              methodName: "cancelledOrFulfilled",
+              methodParameters: [offer.lender, offer.salt]
+            }),
+          ),
+          ...offers.map(
+            (offer) => ({
+              reference: offer.lender,
+              methodName: "nonces",
+              methodParameters: [offer.lender]
+            }),
+          )
+        ]
+      })
+    ];
+
+    console.log("callContext", callContext);
   }
 
   public async validateLoanOffer(offer: LoanOffer) {

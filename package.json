@@ -37,6 +37,7 @@
     "typescript": "~5.2.0"
   },
   "dependencies": {
+    "ethereum-multicall": "^2.23.0",
     "ethers": "^6.9.0"
   }
 }
