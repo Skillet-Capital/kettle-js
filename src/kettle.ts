@@ -1175,6 +1175,11 @@ export class Kettle {
           cancelledOrFulfilled,
           nonce
         });
+
+        return {
+          hash: offer.hash,
+          valid: true
+        }
       }
     )
   }
