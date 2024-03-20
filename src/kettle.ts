@@ -1146,19 +1146,19 @@ export class Kettle {
 
         const lenderAllowance = results.results[currency].callsReturnContext.find(
           (callReturn) => callReturn.reference === lender && callReturn.methodName === "allowance"
-        );
+        )?.returnValues[0];
 
         const amountTaken = results.results["kettle"].callsReturnContext.find(
           (callReturn) => callReturn.reference === offer.hash && callReturn.methodName === "amountTaken"
-        );
+        )?.returnValues[0];
 
         const cancelledOrFulfilled = results.results["kettle"].callsReturnContext.find(
           (callReturn) => callReturn.reference === lender && callReturn.methodName === "cancelledOrFulfilled"
-        );
+        )?.returnValues[0];
 
         const nonce = results.results["kettle"].callsReturnContext.find(
           (callReturn) => callReturn.reference === lender && callReturn.methodName === "nonces"
-        );
+        )?.returnValues[0];
 
         if (!lenderBalance || !lenderAllowance || !amountTaken || !cancelledOrFulfilled || !nonce) return {
           hash: offer.hash,
