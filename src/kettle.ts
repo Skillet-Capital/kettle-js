@@ -1080,8 +1080,8 @@ export class Kettle {
         reference: currency,
         contractAddress: currency,
         abi: [
-          { name: 'balanceOf', type: 'function', inputs: [{ type: 'address', name: 'account' }], outputs: [{ type: 'uint256', name: 'balance' }] },
-          { name: 'allowance', type: 'function', inputs: [{ type: 'address', name: 'owner' }, { type: 'address', name: 'spender' }], outputs: [{ type: 'uint256', name: 'remaining' }] }
+          { name: 'balanceOf', "stateMutability": "view", type: 'function', inputs: [{ type: 'address', name: 'account' }], outputs: [{ type: 'uint256', name: 'balance' }] },
+          { name: 'allowance', "stateMutability": "view", type: 'function', inputs: [{ type: 'address', name: 'owner' }, { type: 'address', name: 'spender' }], outputs: [{ type: 'uint256', name: 'remaining' }] }
         ],
         calls: [
           ...lenders.map((lender) => ({
