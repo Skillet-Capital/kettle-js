@@ -1050,7 +1050,7 @@ export class Kettle {
 
   public async validateLoanOffers(offers: LoanOfferWithHash[]) {
     const multicall = new Multicall({
-      ethersProvider: this.provider,
+      nodeUrl: "https://sepolia.blast.io",
       tryAggregate: true
     });
 
