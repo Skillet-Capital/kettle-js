@@ -1200,10 +1200,10 @@ export class Kettle {
 
     console.log(JSON.stringify(results, null, 2));
 
-    const validOffers = offers.map(
+    return offers.map(
       (offer) => {
         const { lender, terms } = offer;
-        const { currency, maxAmount } = terms;
+        const { currency, maxAmount, totalAmount, minAmount } = terms;
 
         const lenderBalance = results.results[currency].callsReturnContext.find(
           (callReturn) => callReturn.reference === lender && callReturn.methodName === "balanceOf"
@@ -1230,16 +1230,30 @@ export class Kettle {
           valid: false
         }
 
-        console.log({
+        if (BigNumber.from(lenderBalance).lt(maxAmount)) return {
           hash: offer.hash,
-          lender,
-          currency,
-          lenderBalance: BigNumber.from(lenderBalance).toString(),
-          lenderAllowance: BigNumber.from(lenderAllowance).toString(),
-          amountTaken: BigNumber.from(amountTaken).toString(),
-          cancelledOrFulfilled: BigNumber.from(cancelledOrFulfilled).toString(),
-          nonce: BigNumber.from(nonce).toString()
-        });
+          valid: false
+        }
+
+        if (BigNumber.from(lenderAllowance).lt(maxAmount)) return {
+          hash: offer.hash,
+          valid: false
+        }
+
+        if (BigNumber.from(totalAmount).sub(amountTaken).lt(minAmount)) return {
+          hash: offer.hash,
+          valid: false
+        }
+
+        if (BigNumber.from(cancelledOrFulfilled).eq(1)) return {
+          hash: offer.hash,
+          valid: false
+        }
+
+        if (!BigNumber.from(nonce).eq(offer.nonce)) return {
+          hash: offer.hash,
+          valid: false
+        }
 
         return {
           hash: offer.hash,
