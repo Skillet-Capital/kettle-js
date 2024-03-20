@@ -1134,7 +1134,49 @@ export class Kettle {
     console.log("callContext", callContext);
 
     const results: ContractCallResults = await multicall.call(callContext);
-    console.log(results);
+
+    const validOffers = offers.map(
+      (offer) => {
+        const { lender, terms } = offer;
+        const { currency, maxAmount } = terms;
+
+        const lenderBalance = results.results[currency].callsReturnContext.find(
+          (callReturn) => callReturn.reference === lender && callReturn.methodName === "balanceOf"
+        )?.returnValues[0]
+
+        const lenderAllowance = results.results[currency].callsReturnContext.find(
+          (callReturn) => callReturn.reference === lender && callReturn.methodName === "allowance"
+        );
+
+        const amountTaken = results.results["kettle"].callsReturnContext.find(
+          (callReturn) => callReturn.reference === offer.hash && callReturn.methodName === "amountTaken"
+        );
+
+        const cancelledOrFulfilled = results.results["kettle"].callsReturnContext.find(
+          (callReturn) => callReturn.reference === lender && callReturn.methodName === "cancelledOrFulfilled"
+        );
+
+        const nonce = results.results["kettle"].callsReturnContext.find(
+          (callReturn) => callReturn.reference === lender && callReturn.methodName === "nonces"
+        );
+
+        if (!lenderBalance || !lenderAllowance || !amountTaken || !cancelledOrFulfilled || !nonce) return {
+          hash: offer.hash,
+          valid: false
+        }
+
+        console.log({
+          hash: offer.hash,
+          lender,
+          currency,
+          lenderBalance,
+          lenderAllowance,
+          amountTaken,
+          cancelledOrFulfilled,
+          nonce
+        });
+      }
+    )
   }
 
   public async validateLoanOffer(offer: LoanOffer) {
