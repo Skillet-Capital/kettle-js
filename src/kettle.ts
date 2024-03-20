@@ -1132,6 +1132,9 @@ export class Kettle {
     ];
 
     console.log("callContext", callContext);
+
+    const results: ContractCallResults = await multicall.call(callContext);
+    console.log(results);
   }
 
   public async validateLoanOffer(offer: LoanOffer) {
