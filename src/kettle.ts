@@ -1200,7 +1200,7 @@ export class Kettle {
 
     console.log(JSON.stringify(results, null, 2));
 
-    return offers.map(
+    return Object.fromEntries(offers.map(
       (offer) => {
         const { lender, terms } = offer;
         const { currency, maxAmount, totalAmount, minAmount } = terms;
@@ -1225,42 +1225,63 @@ export class Kettle {
           (callReturn) => callReturn.reference === lender && callReturn.methodName === "nonces"
         )?.returnValues[0]
 
-        if (!lenderBalance || !lenderAllowance || !amountTaken || !cancelledOrFulfilled || !nonce) return {
-          hash: offer.hash,
-          valid: false
-        }
+        if (!lenderBalance || !lenderAllowance || !amountTaken || !cancelledOrFulfilled || !nonce) return [
+          offer.hash,
+          {
+            reason: "Invalid return data",
+            valid: false
+          }
+        ]
 
-        if (BigNumber.from(lenderBalance).lt(maxAmount)) return {
-          hash: offer.hash,
-          valid: false
-        }
+        if (BigNumber.from(lenderBalance).lt(maxAmount)) return [
+          offer.hash,
+          {
+            reason: "Insufficient lender balance",
+            valid: false
+          }
+        ]
 
-        if (BigNumber.from(lenderAllowance).lt(maxAmount)) return {
-          hash: offer.hash,
-          valid: false
-        }
+        if (BigNumber.from(lenderAllowance).lt(maxAmount)) return [
+          offer.hash,
+          {
+            reason: "Insufficient lender allowance",
+            valid: false
+          }
+        ]
 
-        if (BigNumber.from(totalAmount).sub(amountTaken).lt(minAmount)) return {
-          hash: offer.hash,
-          valid: false
-        }
+        if (BigNumber.from(totalAmount).sub(amountTaken).lt(minAmount)) return [
+          offer.hash,
+          {
+            reason: "Insufficient offer amount remaining",
+            valid: false
+          }
+        ]
 
-        if (BigNumber.from(cancelledOrFulfilled).eq(1)) return {
-          hash: offer.hash,
-          valid: false
-        }
+        if (BigNumber.from(cancelledOrFulfilled).eq(1)) return [
+          offer.hash,
+          {
+            reason: "Offer has been cancelled",
+            valid: false
+          }
+        ]
 
-        if (!BigNumber.from(nonce).eq(offer.nonce)) return {
-          hash: offer.hash,
-          valid: false
-        }
+        if (!BigNumber.from(nonce).eq(offer.nonce)) return [
+          offer.hash,
+          {
+            reason: "Invalid nonce",
+            valid: false
+          }
+        ]
 
-        return {
-          hash: offer.hash,
-          valid: true
-        }
+        return [
+          offer.hash,
+          {
+            hash: offer.hash,
+            valid: true
+          }
+        ]
       }
-    )
+    ));
   }
 
   public async validateLoanOffer(offer: LoanOffer) {
