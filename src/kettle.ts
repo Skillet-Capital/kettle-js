@@ -1135,6 +1135,8 @@ export class Kettle {
 
     const results: ContractCallResults = await multicall.call(callContext);
 
+    console.log(JSON.stringify(results, null, 2));
+
     const validOffers = offers.map(
       (offer) => {
         const { lender, terms } = offer;
