@@ -1101,9 +1101,68 @@ export class Kettle {
         reference: "kettle",
         contractAddress: this.contractAddress,
         abi: [
-          'function amountTaken(bytes32) view returns (uint256)',
-          'function cancelledOrFulfilled(address,uint256) view returns (bool)',
-          'function nonces(address) view returns (uint256)'
+          {
+            "inputs": [
+              {
+                "internalType": "bytes32",
+                "name": "_hash",
+                "type": "bytes32"
+              }
+            ],
+            "name": "amountTaken",
+            "outputs": [
+              {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+              }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+          },
+          {
+            "inputs": [
+              {
+                "internalType": "address",
+                "name": "",
+                "type": "address"
+              },
+              {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+              }
+            ],
+            "name": "cancelledOrFulfilled",
+            "outputs": [
+              {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+              }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+          },
+          {
+            "inputs": [
+              {
+                "internalType": "address",
+                "name": "",
+                "type": "address"
+              }
+            ],
+            "name": "nonces",
+            "outputs": [
+              {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+              }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+          },
         ],
         calls: [
           ...offers.map(
@@ -1144,23 +1203,23 @@ export class Kettle {
 
         const lenderBalance = results.results[currency].callsReturnContext.find(
           (callReturn) => callReturn.reference === lender && callReturn.methodName === "balanceOf"
-        )?.returnValues[0]
+        )?.returnValues[0]?.toString() ?? "0"
 
         const lenderAllowance = results.results[currency].callsReturnContext.find(
           (callReturn) => callReturn.reference === lender && callReturn.methodName === "allowance"
-        )?.returnValues[0];
+        )?.returnValues[0]?.toString() ?? "0";
 
         const amountTaken = results.results["kettle"].callsReturnContext.find(
           (callReturn) => callReturn.reference === offer.hash && callReturn.methodName === "amountTaken"
-        )?.returnValues[0];
+        )?.returnValues[0]?.toString() ?? "0";
 
         const cancelledOrFulfilled = results.results["kettle"].callsReturnContext.find(
           (callReturn) => callReturn.reference === lender && callReturn.methodName === "cancelledOrFulfilled"
-        )?.returnValues[0];
+        )?.returnValues[0]?.toString() ?? "0";
 
         const nonce = results.results["kettle"].callsReturnContext.find(
           (callReturn) => callReturn.reference === lender && callReturn.methodName === "nonces"
-        )?.returnValues[0];
+        )?.returnValues[0]?.toString() ?? "0";
 
         if (!lenderBalance || !lenderAllowance || !amountTaken || !cancelledOrFulfilled || !nonce) return {
           hash: offer.hash,
