@@ -2,6 +2,10 @@ import { LienWithLender, Lien } from "../types";
 import { equalAddresses } from "./equalAddresses";
 import { getEpoch } from './time';
 
+export function offerIsExpired(expiration: string | number | bigint): boolean {
+  return BigInt(expiration) < getEpoch()
+}
+
 export function isCurrentLien(lien: LienWithLender | Lien): boolean {
   return ((
     BigInt(lien.startTime) 
