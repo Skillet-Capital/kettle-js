@@ -20,6 +20,13 @@ import {
 } from 'ethereum-multicall';
 
 import {
+  buildMakerBalancesAndAllowancesCallContext,
+  buildMakerCollateralBalancesAndAllowancesCallContext,
+  buildCancelledFulfilledAndNonceMulticallContext,
+  buildAmountTakenMulticallCallContext
+} from "./utils/multicall";
+
+import {
   KETTLE_CONTRACT_NAME,
   KETTLE_CONTRACT_VERSION,
   LOAN_OFFER_TYPE,
@@ -35,6 +42,7 @@ import {
   OfferType,
   LienStatus,
   Criteria,
+  ItemType
 } from "./types";
 
 import type {
@@ -62,6 +70,7 @@ import type {
   ClaimAction,
   CancelOrderAction,
   LoanOfferWithHash,
+  BorrowOfferWithHash,
 } from "./types";
 
 import {
@@ -1058,147 +1067,19 @@ export class Kettle {
       tryAggregate: true
     });
 
-    interface LenderCurrencies {
-      [currency: string]: string[];
-    }
-
-    const lenderCurrencies: { [currency: string]: string[] } = offers.reduce(
-      (acc: LenderCurrencies, offer) => {
-        const { lender, terms } = offer;
-        const { currency } = terms;
-      
-        if (!acc[currency]) {
-          acc[currency] = [lender];
-        } else {
-          acc[currency].push(lender);
-        }
-      
-        return acc;
-      }, 
-      {}
-    );
-
-
     const callContext: ContractCallContext[] = [
-      ...Object.entries(lenderCurrencies).map(([currency, lenders]) => ({
-        reference: currency,
-        contractAddress: currency,
-        abi: [
-          { name: 'balanceOf', "stateMutability": "view", type: 'function', inputs: [{ type: 'address', name: 'account' }], outputs: [{ type: 'uint256', name: 'balance' }] },
-          { name: 'allowance', "stateMutability": "view", type: 'function', inputs: [{ type: 'address', name: 'owner' }, { type: 'address', name: 'spender' }], outputs: [{ type: 'uint256', name: 'remaining' }] }
-        ],
-        calls: [
-          ...lenders.map((lender) => ({
-            reference: lender,
-            methodName: 'balanceOf',
-            methodParameters: [lender]
-          })),
-          ...lenders.map((lender) => ({
-            reference: lender,
-            methodName: 'allowance',
-            methodParameters: [lender, this.contractAddress]
-          }))
-        ]
-      })).flat(),
-      
-      ({
-        reference: "kettle",
-        contractAddress: this.contractAddress,
-        abi: [
-          {
-            "inputs": [
-              {
-                "internalType": "bytes32",
-                "name": "_hash",
-                "type": "bytes32"
-              }
-            ],
-            "name": "amountTaken",
-            "outputs": [
-              {
-                "internalType": "uint256",
-                "name": "",
-                "type": "uint256"
-              }
-            ],
-            "stateMutability": "view",
-            "type": "function"
-          },
-          {
-            "inputs": [
-              {
-                "internalType": "address",
-                "name": "",
-                "type": "address"
-              },
-              {
-                "internalType": "uint256",
-                "name": "",
-                "type": "uint256"
-              }
-            ],
-            "name": "cancelledOrFulfilled",
-            "outputs": [
-              {
-                "internalType": "uint256",
-                "name": "",
-                "type": "uint256"
-              }
-            ],
-            "stateMutability": "view",
-            "type": "function"
-          },
-          {
-            "inputs": [
-              {
-                "internalType": "address",
-                "name": "",
-                "type": "address"
-              }
-            ],
-            "name": "nonces",
-            "outputs": [
-              {
-                "internalType": "uint256",
-                "name": "",
-                "type": "uint256"
-              }
-            ],
-            "stateMutability": "view",
-            "type": "function"
-          },
-        ],
-        calls: [
-          ...offers.map(
-            (offer) => ({
-              reference: offer.hash,
-              methodName: "amountTaken",
-              methodParameters: [offer.hash]
-            }),
-          ),
-          ...offers.map(
-            (offer) => ({
-              reference: offer.lender,
-              methodName: "cancelledOrFulfilled",
-              methodParameters: [offer.lender, offer.salt]
-            }),
-          ),
-          ...offers.map(
-            (offer) => ({
-              reference: offer.lender,
-              methodName: "nonces",
-              methodParameters: [offer.lender]
-            }),
-          )
-        ]
-      })
+      ...buildMakerBalancesAndAllowancesCallContext(
+          offers.map((offer) => ({ maker: offer.lender, currency: offer.terms.currency})),
+          this.contractAddress
+        ),
+      ...buildCancelledFulfilledAndNonceMulticallContext(
+          offers.map((offer) => ({ maker: offer.lender, salt: offer.salt })),
+          this.contractAddress
+        ),
+      ...buildAmountTakenMulticallCallContext(offers, this.contractAddress)
     ];
 
-    console.log(JSON.stringify(callContext, null, 2));
-
     const results: ContractCallResults = await multicall.call(callContext);
-
-    console.log(JSON.stringify(results, null, 2));
 
     return Object.fromEntries(offers.map(
       (offer) => {
@@ -1287,45 +1168,159 @@ export class Kettle {
   public async validateLoanOffer(offer: LoanOffer) {
     const operator = await this.contract.getAddress();
 
-    const lenderBalance = await currencyBalance(
-      offer.lender,
-      offer.terms.currency,
-      offer.terms.maxAmount,
-      this.provider
-    );
+    const [lenderBalance, lenderAllowance] = await Promise.all([
+      currencyBalance(
+        offer.lender,
+        offer.terms.currency,
+        offer.terms.maxAmount,
+        this.provider
+      ),
+      currencyAllowance(
+        offer.lender,
+        offer.terms.currency,
+        operator,
+        this.provider
+      )
+    ]);
 
     if (!lenderBalance) {
       throw new Error("Insufficient lender balance")
     }
-
-    const lenderAllowance = await currencyAllowance(
-      offer.lender,
-      offer.terms.currency,
-      operator,
-      this.provider
-    );
 
     if (lenderAllowance < BigInt(offer.terms.maxAmount)) {
       throw new Error("Insufficient lender allowance")
     }
 
     const _offerHash = await this.getLoanOfferHash(offer);
-    const amountTaken = await this.contract.amountTaken(_offerHash);
-    const remainingAmount = BigInt(offer.terms.totalAmount) - amountTaken;
 
+    const [amountTaken, cancelled, nonce] = await Promise.all([
+      this.contract.amountTaken(_offerHash),
+      this.contract.cancelledOrFulfilled(offer.lender, offer.salt),
+      this.contract.nonces(offer.lender)
+    ]);
+
+    const remainingAmount = BigInt(offer.terms.totalAmount) - amountTaken;
     if (remainingAmount < BigInt(offer.terms.maxAmount)) {
       throw new Error("Insufficient offer amount remaining");
     }
 
-    const cancelled = await this.contract.cancelledOrFulfilled(offer.lender, offer.salt);
     if (cancelled) {
       throw new Error("Offer has been cancelled");
     }
 
-    const nonce = await this.contract.nonces(offer.lender);
     if (offer.nonce != nonce) {
       throw new Error("Invalid nonce");
     }
+  }
+
+  public async validateBorrowOffers(offers: BorrowOfferWithHash[]) {
+    const multicall = new Multicall({
+      nodeUrl: "https://sepolia.blast.io",
+      tryAggregate: true
+    });
+
+    const callContext: ContractCallContext[] = [
+      ...buildMakerCollateralBalancesAndAllowancesCallContext(
+          offers.map((offer) => ({ 
+            maker: offer.borrower, 
+            collection: offer.collateral.collection,
+            itemType: offer.collateral.itemType,
+            identifier: offer.collateral.identifier
+          })),
+          this.contractAddress
+        ),
+      ...buildCancelledFulfilledAndNonceMulticallContext(
+          offers.map((offer) => ({ maker: offer.borrower, salt: offer.salt })),
+          this.contractAddress
+        )
+    ];
+
+    const results: ContractCallResults = await multicall.call(callContext);
+
+    return Object.fromEntries(offers.map(
+      (offer) => {
+        const { borrower, terms } = offer;
+        const { collection, itemType, identifier, size } = offer.collateral;
+
+        const collateralOwner = results.results[collection].callsReturnContext.find(
+          (callReturn) => callReturn.reference === identifier && callReturn.methodName === "ownerOf"
+        )?.returnValues[0];
+
+        const collateralBalance = results.results[collection].callsReturnContext.find(
+          (callReturn) => callReturn.reference === `${borrower}-${identifier}`.toLowerCase() && callReturn.methodName === "balanceOf"
+        )?.returnValues[0];
+
+        const collateralAllowance = results.results[collection].callsReturnContext.find(
+          (callReturn) => equalAddresses(callReturn.reference, borrower) && callReturn.methodName === "isApprovedForAll"
+        )?.returnValues[0];
+
+        const cancelledOrFulfilled = results.results["kettle"].callsReturnContext.find(
+          (callReturn) => equalAddresses(callReturn.reference, borrower) && callReturn.methodName === "cancelledOrFulfilled"
+        )?.returnValues[0]
+
+        const nonce = results.results["kettle"].callsReturnContext.find(
+          (callReturn) => equalAddresses(callReturn.reference, borrower) && callReturn.methodName === "nonces"
+        )?.returnValues[0]
+
+        if (!(collateralOwner || collateralBalance) || !collateralAllowance || !cancelledOrFulfilled || !nonce) return [
+          offer.hash,
+          {
+            reason: "Invalid return data",
+            valid: false
+          }
+        ];
+
+        if (itemType === ItemType.ERC721) {
+          if (!equalAddresses(collateralOwner, borrower)) return [
+            offer.hash,
+            {
+              reason: "Borrower does not own collateral",
+              valid: false
+            }
+          ]
+        } else {
+          if (BigInt(collateralBalance) < BigInt(size)) return [
+            offer.hash,
+            {
+              reason: "Borrower does not own collateral",
+              valid: false
+            }
+          ]
+        }
+
+        if (!collateralAllowance) return [
+          offer.hash,
+          {
+            reason: "Borrower has not approved collateral",
+            valid: false
+          }
+        ]
+
+        if (BigNumber.from(cancelledOrFulfilled).eq(1)) return [
+          offer.hash,
+          {
+            reason: "Offer has been cancelled",
+            valid: false
+          }
+        ]
+
+        if (!BigNumber.from(nonce).eq(offer.nonce)) return [
+          offer.hash,
+          {
+            reason: "Invalid nonce",
+            valid: false
+          }
+        ]
+
+        return [
+          offer.hash,
+          {
+            hash: offer.hash,
+            valid: true
+          }
+        ]
+      }
+    ));
   }
 
   public async validateBorrowOffer(offer: BorrowOffer) {
