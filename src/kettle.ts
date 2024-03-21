@@ -73,7 +73,8 @@ import type {
   CancelOrderAction,
   LoanOfferWithHash,
   BorrowOfferWithHash,
-  MarketOfferWithHash
+  MarketOfferWithHash,
+  LienWithLender
 } from "./types";
 
 import {
@@ -103,6 +104,11 @@ import {
 import {
   equalAddresses
 } from "./utils/equalAddresses";
+
+import {
+  isCurrentLien,
+  lienMatchesOfferCollateral
+} from "./utils/validations";
 
 export class Kettle {
 
@@ -1118,11 +1124,18 @@ export class Kettle {
         )?.returnValues[0]
 
         let currentDebt;
+        let lien;
+
         let collateralId = `${collection}/${identifier}`.toLowerCase();
         if (lienCollateralMap?.[collateralId]) {
-          currentDebt = results.results["kettleCurrentDebtAmount"].callsReturnContext.find(
-            (callReturn) => callReturn.reference === collateralId && callReturn.methodName === "currentDebtAmount"
-          )?.returnValues[0]
+          let _lien = lienCollateralMap?.[collateralId];
+          if (isCurrentLien(_lien) && lienMatchesOfferCollateral(_lien, collection, identifier, currency)) {
+            lien = _lien;
+
+            currentDebt = results.results["kettleCurrentDebtAmount"].callsReturnContext.find(
+              (callReturn) => callReturn.reference === collateralId && callReturn.methodName === "currentDebtAmount"
+            )?.returnValues[0]
+          }
         }
 
         if (!lenderBalance || !lenderAllowance || !amountTaken || !cancelledOrFulfilled || !nonce) return [
@@ -1133,12 +1146,13 @@ export class Kettle {
           }
         ]
 
+        // check for valid balance (against lien if applicable)
         if (BigNumber.from(lenderBalance).lt(maxAmount)) {
-          if (lienCollateralMap?.[collateralId] && currentDebt) {
-            if (equalAddresses(lender, lienCollateralMap?.[collateralId]?.lender)) {
-              if (BigNumber.from(currentDebt).lt(maxAmount)) {
-                const diff = BigNumber.from(maxAmount).sub(currentDebt);
-                if (BigNumber.from(lenderBalance).lt(diff)) return [
+          if (lien && currentDebt && equalAddresses(lender, lien.lender)) {
+            if (BigNumber.from(currentDebt).lt(maxAmount)) {
+              const diff = BigNumber.from(maxAmount).sub(currentDebt);
+              if (BigNumber.from(lenderBalance).lt(diff)) {
+                return [
                   offer.hash,
                   {
                     reason: "Insufficient lender balance",
@@ -1146,14 +1160,6 @@ export class Kettle {
                   }
                 ]
               }
-            } else {
-              return [
-                offer.hash,
-                {
-                  reason: "Insufficient lender balance",
-                  valid: false
-                }
-              ]
             }
           } else {
             return [
@@ -1166,12 +1172,13 @@ export class Kettle {
           }
         }
 
+        // check for valid allowance (against lien if applicable)
         if (BigNumber.from(lenderAllowance).lt(maxAmount)) {
-          if (lienCollateralMap?.[collateralId] && currentDebt) {
-            if (equalAddresses(lender, lienCollateralMap?.[collateralId]?.lender)) {
-              if (BigNumber.from(currentDebt).lt(maxAmount)) {
-                const diff = BigNumber.from(maxAmount).sub(currentDebt);
-                if (BigNumber.from(lenderAllowance).lt(diff)) return [
+          if (lien && currentDebt && equalAddresses(lender, lien.lender)) {
+            if (BigNumber.from(currentDebt).lt(maxAmount)) {
+              const diff = BigNumber.from(maxAmount).sub(currentDebt);
+              if (BigNumber.from(lenderAllowance).lt(diff)) {
+                return [
                   offer.hash,
                   {
                     reason: "Insufficient lender allowance",
@@ -1179,14 +1186,6 @@ export class Kettle {
                   }
                 ]
               }
-            } else {
-              return [
-                offer.hash,
-                {
-                  reason: "Insufficient lender allowance",
-                  valid: false
-                }
-              ]
             }
           } else {
             return [
@@ -1469,7 +1468,7 @@ export class Kettle {
       (offer) => {
         const { maker, collateral, terms } = offer;
         const { collection, itemType, identifier, size } = collateral;
-        const { amount } = terms;
+        const { currency, amount } = terms;
 
         const collateralOwner = results.results[collection].callsReturnContext.find(
           (callReturn) => callReturn.reference === identifier && callReturn.methodName === "ownerOf"
@@ -1491,11 +1490,18 @@ export class Kettle {
         )?.returnValues[0];
 
         let currentDebt;
+        let lien;
+
         let collateralId = `${collection}/${identifier}`.toLowerCase();
         if (lienCollateralMap?.[collateralId]) {
-          currentDebt = results.results["kettleCurrentDebtAmount"].callsReturnContext.find(
-            (callReturn) => callReturn.reference === collateralId && callReturn.methodName === "currentDebtAmount"
-          )?.returnValues[0]
+          let _lien = lienCollateralMap?.[collateralId];
+          if (isCurrentLien(_lien) && lienMatchesOfferCollateral(_lien, collection, identifier, currency)) {
+            lien = _lien;
+
+            currentDebt = results.results["kettleCurrentDebtAmount"].callsReturnContext.find(
+              (callReturn) => callReturn.reference === collateralId && callReturn.methodName === "currentDebtAmount"
+            )?.returnValues[0]
+          }
         }
 
         const nonce = results.results["kettle"].callsReturnContext.find(
@@ -1528,16 +1534,18 @@ export class Kettle {
           }
         }
 
+        let collateralInLien = false;
         if (borrowerDoesNotOwnCollateral) {
           if (
-            lienCollateralMap?.[collateralId]
+            lien
             && currentDebt
-            && equalAddresses(maker, lienCollateralMap?.[collateralId]?.borrower)
+            && equalAddresses(maker, lien.borrower)
           ) {
+            collateralInLien = true;
             if (BigNumber.from(currentDebt).gt(amount)) return [
               offer.hash,
               {
-                reason: "Borrower does not own collateral",
+                reason: "Ask does not cover debt",
                 valid: false
               }
             ]
@@ -1546,34 +1554,20 @@ export class Kettle {
             return [
               offer.hash,
               {
-                reason: "Borrower does not own collateral",
+                reason: "Seller does not own collateral",
                 valid: false
               }
             ]
           }
         }
 
-        if (!collateralAllowance) {
-          if (lienCollateralMap?.[collateralId]) {
-            if (!equalAddresses(maker, lienCollateralMap?.[collateralId]?.borrower)) {
-              return [
-                offer.hash,
-                {
-                  reason: "Seller has not approved collateral",
-                  valid: false
-                }
-              ]
-            }
-          } else {
-            return [
-              offer.hash,
-              {
-                reason: "Seller has not approved collateral",
-                valid: false
-              }
-            ]
+        if (!collateralAllowance && !collateralInLien) return [
+          offer.hash,
+          {
+            reason: "Seller has not approved collateral",
+            valid: false
           }
-        }
+        ]
 
         if (BigNumber.from(cancelledOrFulfilled).eq(1)) return [
           offer.hash,
