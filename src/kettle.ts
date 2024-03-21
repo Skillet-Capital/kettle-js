@@ -1523,7 +1523,7 @@ export class Kettle {
             borrowerDoesNotOwnCollateral = true;
           }
         } else {
-          if (BigInt(collateralBalance) < BigInt(size)) {
+          if (BigNumber.from(collateralBalance).lt(size)) {
             borrowerDoesNotOwnCollateral = true;
           }
         }
@@ -1534,7 +1534,7 @@ export class Kettle {
             && currentDebt
             && equalAddresses(maker, lienCollateralMap?.[collateralId]?.borrower)
           ) {
-            if (BigInt(currentDebt) > BigInt(amount)) return [
+            if (BigNumber.from(currentDebt).gt(amount)) return [
               offer.hash,
               {
                 reason: "Borrower does not own collateral",
