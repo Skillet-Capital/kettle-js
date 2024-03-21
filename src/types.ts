@@ -152,6 +152,24 @@ export type Lien = {
   startTime: string | number | bigint;
 }
 
+export type LienWithLender = {
+  recipient: string;
+  lender: string;
+  borrower: string;
+  currency: string;
+  collection: string;
+  itemType: ItemType;
+  tokenId: string | number | bigint;
+  size: string | number | bigint;
+  principal: string | number | bigint;
+  rate: string | number | bigint;
+  defaultRate: string | number | bigint;
+  fee: string | number | bigint;
+  duration: string | number | bigint;
+  gracePeriod: string | number | bigint;
+  startTime: string | number | bigint;
+}
+
 export type CreateLoanOfferInput = {
   collection: string;
   itemType: ItemType;

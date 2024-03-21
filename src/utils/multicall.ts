@@ -2,7 +2,7 @@ import {
   ContractCallContext
 } from 'ethereum-multicall';
 
-import { ItemType, Lien } from '../types';
+import { ItemType, LienWithLender } from '../types';
 import { LoanOfferWithHash, } from "../types";
 
 interface OfferCollaterals {
@@ -39,7 +39,7 @@ interface CollateralMap {
 }
 
 export interface LienCollateralMap {
-  [identifier: string]: Lien;
+  [identifier: string]: LienWithLender;
 }
 
 export function buildMakerCollateralBalancesAndAllowancesCallContext(
