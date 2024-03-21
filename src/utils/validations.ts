@@ -1,8 +1,8 @@
-import { LienWithLender } from "../types";
+import { LienWithLender, Lien } from "../types";
 import { equalAddresses } from "./equalAddresses";
 import { getEpoch } from './time';
 
-export function isCurrentLien(lien: LienWithLender): boolean {
+export function isCurrentLien(lien: LienWithLender | Lien): boolean {
   return ((
     BigInt(lien.startTime) 
     + BigInt(lien.duration) 
