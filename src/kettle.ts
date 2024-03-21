@@ -1529,26 +1529,27 @@ export class Kettle {
         }
 
         if (borrowerDoesNotOwnCollateral) {
-          if (lienCollateralMap?.[collateralId] && currentDebt) {
-            if (equalAddresses(maker, lienCollateralMap?.[collateralId]?.borrower)) {
-              if (BigInt(currentDebt) > BigInt(amount)) {
-                return [
-                  offer.hash,
-                  {
-                    reason: "Borrower does not own collateral",
-                    valid: false
-                  }
-                ]
+          if (
+            lienCollateralMap?.[collateralId]
+            && currentDebt
+            && equalAddresses(maker, lienCollateralMap?.[collateralId]?.borrower)
+          ) {
+            if (BigInt(currentDebt) > BigInt(amount)) return [
+              offer.hash,
+              {
+                reason: "Borrower does not own collateral",
+                valid: false
               }
-            } else {
-              return [
-                offer.hash,
-                {
-                  reason: "Borrower does not own collateral",
-                  valid: false
-                }
-              ]
-            }
+            ]
+          }
+          else {
+            return [
+              offer.hash,
+              {
+                reason: "Borrower does not own collateral",
+                valid: false
+              }
+            ]
           }
         }
 
