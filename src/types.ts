@@ -183,6 +183,7 @@ export type CreateLoanOfferInput = {
   duration: string | number | bigint;
   gracePeriod: string | number | bigint;
   expiration: string | number | bigint;
+  lien?: LienWithLender;
 }
 
 export type CreateBorrowOfferInput = {
@@ -212,7 +213,7 @@ export type CreateMarketOfferInput = {
   fee: string | number | bigint;
   recipient: string;
   expiration: string | number | bigint;
-  lien?: Lien;
+  lien?: LienWithLender;
 }
 
 export type Payment = {

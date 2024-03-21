@@ -163,10 +163,23 @@ export class Kettle {
 
     const offer = await this._formatLoanOffer(offerer!, input);
 
+    let _amount = offer.terms.maxAmount;
+    if (
+      input.lien 
+      && isCurrentLien(input.lien ) 
+      && lienMatchesOfferCollateral(input.lien , offer.collateral.collection, offer.collateral.identifier, offer.terms.currency)
+      && equalAddresses(input.lien .lender, offer.lender)
+    ) {
+      let { debt } = await this.contract.currentDebtAmount(input.lien);
+      _amount = BigInt(debt) < BigInt(offer.terms.maxAmount) 
+        ? BigInt(offer.terms.maxAmount) - BigInt(debt)
+        : BigInt(0);
+    }
+
     const balance = await currencyBalance(
       offerer,
       offer.terms.currency,
-      offer.terms.totalAmount,
+      _amount,
       this.provider
     );
 
@@ -182,7 +195,7 @@ export class Kettle {
     );
 
     const approvalActions = [];
-    if (allowance < BigInt(offer.terms.totalAmount)) {
+    if (allowance < BigInt(_amount)) {
       const allowanceAction = await getAllowanceAction(
           offer.terms.currency,
           operator,
