@@ -10,6 +10,23 @@ import {
 } from "ethers";
 
 import {
+  BigNumber
+} from "@ethersproject/bignumber"
+
+import {
+  Multicall,
+  ContractCallResults,
+  ContractCallContext,
+} from 'ethereum-multicall';
+
+import {
+  buildMakerBalancesAndAllowancesCallContext,
+  buildMakerCollateralBalancesAndAllowancesCallContext,
+  buildCancelledFulfilledAndNonceMulticallContext,
+  buildAmountTakenMulticallCallContext
+} from "./utils/multicall";
+
+import {
   KETTLE_CONTRACT_NAME,
   KETTLE_CONTRACT_VERSION,
   LOAN_OFFER_TYPE,
@@ -25,6 +42,7 @@ import {
   OfferType,
   LienStatus,
   Criteria,
+  ItemType
 } from "./types";
 
 import type {
@@ -51,6 +69,9 @@ import type {
   RepayAction,
   ClaimAction,
   CancelOrderAction,
+  LoanOfferWithHash,
+  BorrowOfferWithHash,
+  MarketOfferWithHash
 } from "./types";
 
 import {
@@ -1041,48 +1062,279 @@ export class Kettle {
     };
   }
 
+  public async validateLoanOffers(offers: LoanOfferWithHash[]) {
+    const multicall = new Multicall({
+      nodeUrl: "https://sepolia.blast.io",
+      tryAggregate: true
+    });
+
+    const callContext: ContractCallContext[] = [
+      ...buildMakerBalancesAndAllowancesCallContext(
+          offers.map((offer) => ({ maker: offer.lender, currency: offer.terms.currency})),
+          this.contractAddress
+        ),
+      ...buildCancelledFulfilledAndNonceMulticallContext(
+          offers.map((offer) => ({ maker: offer.lender, salt: offer.salt })),
+          this.contractAddress
+        ),
+      ...buildAmountTakenMulticallCallContext(offers, this.contractAddress)
+    ];
+
+    const results: ContractCallResults = await multicall.call(callContext);
+
+    return Object.fromEntries(offers.map(
+      (offer) => {
+        const { lender, terms } = offer;
+        const { currency, maxAmount, totalAmount, minAmount } = terms;
+
+        const lenderBalance = results.results[currency].callsReturnContext.find(
+          (callReturn) => callReturn.reference === lender && callReturn.methodName === "balanceOf"
+        )?.returnValues[0]
+
+        const lenderAllowance = results.results[currency].callsReturnContext.find(
+          (callReturn) => callReturn.reference === lender && callReturn.methodName === "allowance"
+        )?.returnValues[0]
+
+        const amountTaken = results.results["kettleAmountTaken"].callsReturnContext.find(
+          (callReturn) => callReturn.reference === offer.hash && callReturn.methodName === "amountTaken"
+        )?.returnValues[0]
+
+        const cancelledOrFulfilled = results.results["kettle"].callsReturnContext.find(
+          (callReturn) => (
+            callReturn.reference === `${lender}-${offer.salt}`.toLowerCase()
+            && callReturn.methodName === "cancelledOrFulfilled"
+          )
+        )?.returnValues[0]
+
+        const nonce = results.results["kettle"].callsReturnContext.find(
+          (callReturn) => callReturn.reference === lender && callReturn.methodName === "nonces"
+        )?.returnValues[0]
+
+        if (!lenderBalance || !lenderAllowance || !amountTaken || !cancelledOrFulfilled || !nonce) return [
+          offer.hash,
+          {
+            reason: "Invalid return data",
+            valid: false
+          }
+        ]
+
+        if (BigNumber.from(lenderBalance).lt(maxAmount)) return [
+          offer.hash,
+          {
+            reason: "Insufficient lender balance",
+            valid: false
+          }
+        ]
+
+        if (BigNumber.from(lenderAllowance).lt(maxAmount)) return [
+          offer.hash,
+          {
+            reason: "Insufficient lender allowance",
+            valid: false
+          }
+        ]
+
+        if (BigNumber.from(totalAmount).sub(amountTaken).lt(minAmount)) return [
+          offer.hash,
+          {
+            reason: "Insufficient offer amount remaining",
+            valid: false
+          }
+        ]
+
+        if (BigNumber.from(cancelledOrFulfilled).eq(1)) return [
+          offer.hash,
+          {
+            reason: "Offer has been cancelled",
+            valid: false
+          }
+        ]
+
+        if (!BigNumber.from(nonce).eq(offer.nonce)) return [
+          offer.hash,
+          {
+            reason: "Invalid nonce",
+            valid: false
+          }
+        ]
+
+        return [
+          offer.hash,
+          {
+            hash: offer.hash,
+            valid: true
+          }
+        ]
+      }
+    ));
+  }
+
   public async validateLoanOffer(offer: LoanOffer) {
     const operator = await this.contract.getAddress();
 
-    const lenderBalance = await currencyBalance(
-      offer.lender,
-      offer.terms.currency,
-      offer.terms.maxAmount,
-      this.provider
-    );
+    const [lenderBalance, lenderAllowance] = await Promise.all([
+      currencyBalance(
+        offer.lender,
+        offer.terms.currency,
+        offer.terms.maxAmount,
+        this.provider
+      ),
+      currencyAllowance(
+        offer.lender,
+        offer.terms.currency,
+        operator,
+        this.provider
+      )
+    ]);
 
     if (!lenderBalance) {
       throw new Error("Insufficient lender balance")
     }
-
-    const lenderAllowance = await currencyAllowance(
-      offer.lender,
-      offer.terms.currency,
-      operator,
-      this.provider
-    );
 
     if (lenderAllowance < BigInt(offer.terms.maxAmount)) {
       throw new Error("Insufficient lender allowance")
     }
 
     const _offerHash = await this.getLoanOfferHash(offer);
-    const amountTaken = await this.contract.amountTaken(_offerHash);
-    const remainingAmount = BigInt(offer.terms.totalAmount) - amountTaken;
 
+    const [amountTaken, cancelled, nonce] = await Promise.all([
+      this.contract.amountTaken(_offerHash),
+      this.contract.cancelledOrFulfilled(offer.lender, offer.salt),
+      this.contract.nonces(offer.lender)
+    ]);
+
+    const remainingAmount = BigInt(offer.terms.totalAmount) - amountTaken;
     if (remainingAmount < BigInt(offer.terms.maxAmount)) {
       throw new Error("Insufficient offer amount remaining");
     }
 
-    const cancelled = await this.contract.cancelledOrFulfilled(offer.lender, offer.salt);
     if (cancelled) {
       throw new Error("Offer has been cancelled");
     }
 
-    const nonce = await this.contract.nonces(offer.lender);
     if (offer.nonce != nonce) {
       throw new Error("Invalid nonce");
     }
+  }
+
+  public async validateBorrowOffers(offers: BorrowOfferWithHash[]) {
+    const multicall = new Multicall({
+      nodeUrl: "https://sepolia.blast.io",
+      tryAggregate: true
+    });
+
+    const callContext: ContractCallContext[] = [
+      ...buildMakerCollateralBalancesAndAllowancesCallContext(
+          offers.map((offer) => ({ 
+            maker: offer.borrower, 
+            collection: offer.collateral.collection,
+            itemType: offer.collateral.itemType,
+            identifier: offer.collateral.identifier
+          })),
+          this.contractAddress
+        ),
+      ...buildCancelledFulfilledAndNonceMulticallContext(
+          offers.map((offer) => ({ maker: offer.borrower, salt: offer.salt })),
+          this.contractAddress
+        )
+    ];
+
+    const results: ContractCallResults = await multicall.call(callContext);
+
+    return Object.fromEntries(offers.map(
+      (offer) => {
+        const { borrower, terms } = offer;
+        const { collection, itemType, identifier, size } = offer.collateral;
+
+        const collateralOwner = results.results[collection].callsReturnContext.find(
+          (callReturn) => callReturn.reference === identifier && callReturn.methodName === "ownerOf"
+        )?.returnValues[0];
+
+        const collateralBalance = results.results[collection].callsReturnContext.find(
+          (callReturn) => callReturn.reference === `${borrower}-${identifier}`.toLowerCase() && callReturn.methodName === "balanceOf"
+        )?.returnValues[0];
+
+        const collateralAllowance = results.results[collection].callsReturnContext.find(
+          (callReturn) => equalAddresses(callReturn.reference, borrower) && callReturn.methodName === "isApprovedForAll"
+        )?.returnValues[0];
+
+        const cancelledOrFulfilled = results.results["kettle"].callsReturnContext.find(
+          (callReturn) => (
+            callReturn.reference === `${borrower}-${offer.salt}`.toLowerCase()
+            && callReturn.methodName === "cancelledOrFulfilled"
+          )
+        )?.returnValues[0]
+
+        const nonce = results.results["kettle"].callsReturnContext.find(
+          (callReturn) => equalAddresses(callReturn.reference, borrower) && callReturn.methodName === "nonces"
+        )?.returnValues[0]
+
+        if (!(collateralOwner || collateralBalance) || !collateralAllowance || !cancelledOrFulfilled || !nonce) return [
+          offer.hash,
+          {
+            reason: "Invalid return data",
+            valid: false,
+            data: {
+              collateralOwner,
+              collateralBalance,
+              collateralAllowance,
+              cancelledOrFulfilled,
+              nonce
+            }
+          }
+        ];
+
+        if (itemType === ItemType.ERC721) {
+          if (!equalAddresses(collateralOwner, borrower)) return [
+            offer.hash,
+            {
+              reason: "Borrower does not own collateral",
+              valid: false
+            }
+          ]
+        } else {
+          if (BigInt(collateralBalance) < BigInt(size)) return [
+            offer.hash,
+            {
+              reason: "Borrower does not own collateral",
+              valid: false
+            }
+          ]
+        }
+
+        if (!collateralAllowance) return [
+          offer.hash,
+          {
+            reason: "Borrower has not approved collateral",
+            valid: false
+          }
+        ]
+
+        if (BigNumber.from(cancelledOrFulfilled).eq(1)) return [
+          offer.hash,
+          {
+            reason: "Offer has been cancelled",
+            valid: false
+          }
+        ]
+
+        if (!BigNumber.from(nonce).eq(offer.nonce)) return [
+          offer.hash,
+          {
+            reason: "Invalid nonce",
+            valid: false
+          }
+        ]
+
+        return [
+          offer.hash,
+          {
+            hash: offer.hash,
+            valid: true
+          }
+        ]
+      }
+    ));
   }
 
   public async validateBorrowOffer(offer: BorrowOffer) {
@@ -1118,6 +1370,126 @@ export class Kettle {
     if (offer.nonce != nonce) {
       throw new Error("Invalid nonce");
     }
+  }
+
+  public async validateAskOffers(offers: MarketOfferWithHash[]) {
+    const multicall = new Multicall({
+      nodeUrl: "https://sepolia.blast.io",
+      tryAggregate: true
+    });
+
+    const callContext: ContractCallContext[] = [
+      ...buildMakerCollateralBalancesAndAllowancesCallContext(
+        offers.map((offer) => ({ 
+          maker: offer.maker, 
+          collection: offer.collateral.collection,
+          itemType: offer.collateral.itemType,
+          identifier: offer.collateral.identifier
+        })),
+        this.contractAddress
+      ),
+      ...buildCancelledFulfilledAndNonceMulticallContext(
+          offers.map((offer) => ({ maker: offer.maker, salt: offer.salt })),
+          this.contractAddress
+        )
+    ];
+
+    const results: ContractCallResults = await multicall.call(callContext);
+
+    return Object.fromEntries(offers.map(
+      (offer) => {
+        const { maker } = offer;
+        const { collection, itemType, identifier, size } = offer.collateral;
+
+        const collateralOwner = results.results[collection].callsReturnContext.find(
+          (callReturn) => callReturn.reference === identifier && callReturn.methodName === "ownerOf"
+        )?.returnValues[0];
+
+        const collateralBalance = results.results[collection].callsReturnContext.find(
+          (callReturn) => callReturn.reference === `${maker}-${identifier}`.toLowerCase() && callReturn.methodName === "balanceOf"
+        )?.returnValues[0];
+
+        const collateralAllowance = results.results[collection].callsReturnContext.find(
+          (callReturn) => equalAddresses(callReturn.reference, maker) && callReturn.methodName === "isApprovedForAll"
+        )?.returnValues[0];
+
+        const cancelledOrFulfilled = results.results["kettle"].callsReturnContext.find(
+          (callReturn) => (
+            callReturn.reference === `${maker}-${offer.salt}`.toLowerCase()
+            && callReturn.methodName === "cancelledOrFulfilled"
+          )
+        )?.returnValues[0]
+
+        const nonce = results.results["kettle"].callsReturnContext.find(
+          (callReturn) => equalAddresses(callReturn.reference, maker) && callReturn.methodName === "nonces"
+        )?.returnValues[0]
+
+        if (!(collateralOwner || collateralBalance) || !collateralAllowance || !cancelledOrFulfilled || !nonce) return [
+          offer.hash,
+          {
+            reason: "Invalid return data",
+            valid: false,
+            data: {
+              collateralOwner,
+              collateralBalance,
+              collateralAllowance,
+              cancelledOrFulfilled,
+              nonce
+            }
+          }
+        ];
+
+        if (itemType === ItemType.ERC721) {
+          if (!equalAddresses(collateralOwner, maker)) return [
+            offer.hash,
+            {
+              reason: "Borrower does not own collateral",
+              valid: false
+            }
+          ]
+        } else {
+          if (BigInt(collateralBalance) < BigInt(size)) return [
+            offer.hash,
+            {
+              reason: "Borrower does not own collateral",
+              valid: false
+            }
+          ]
+        }
+
+        if (!collateralAllowance) return [
+          offer.hash,
+          {
+            reason: "Borrower has not approved collateral",
+            valid: false
+          }
+        ]
+
+        if (BigNumber.from(cancelledOrFulfilled).eq(1)) return [
+          offer.hash,
+          {
+            reason: "Offer has been cancelled",
+            valid: false
+          }
+        ]
+
+        if (!BigNumber.from(nonce).eq(offer.nonce)) return [
+          offer.hash,
+          {
+            reason: "Invalid nonce",
+            valid: false
+          }
+        ]
+
+        return [
+          offer.hash,
+          {
+            hash: offer.hash,
+            valid: true
+          }
+        ]
+      }
+    ));
   }
 
   public async validateAskOffer(offer: MarketOffer, lien?: Lien) {
@@ -1179,6 +1551,102 @@ export class Kettle {
     if (offer.nonce != nonce) {
       throw new Error("Invalid nonce");
     }
+  }
+
+  public async validateBidOffers(offers: MarketOfferWithHash[]) {
+    const multicall = new Multicall({
+      nodeUrl: "https://sepolia.blast.io",
+      tryAggregate: true
+    });
+
+    const callContext: ContractCallContext[] = [
+      ...buildMakerBalancesAndAllowancesCallContext(
+          offers.map((offer) => ({ maker: offer.maker, currency: offer.terms.currency})),
+          this.contractAddress
+        ),
+      ...buildCancelledFulfilledAndNonceMulticallContext(
+          offers.map((offer) => ({ maker: offer.maker, salt: offer.salt })),
+          this.contractAddress
+        )
+    ];
+
+    const results: ContractCallResults = await multicall.call(callContext);
+
+    return Object.fromEntries(offers.map(
+      (offer) => {
+        const { maker, terms } = offer;
+        const { currency, amount } = terms;
+
+        const makerBalance = results.results[currency].callsReturnContext.find(
+          (callReturn) => equalAddresses(callReturn.reference, maker) && callReturn.methodName === "balanceOf"
+        )?.returnValues[0]
+
+        const makerAllowance = results.results[currency].callsReturnContext.find(
+          (callReturn) => equalAddresses(callReturn.reference, maker) && callReturn.methodName === "allowance"
+        )?.returnValues[0]
+
+        const cancelledOrFulfilled = results.results["kettle"].callsReturnContext.find(
+          (callReturn) => (
+            callReturn.reference === `${maker}-${offer.salt}`.toLowerCase()
+            && callReturn.methodName === "cancelledOrFulfilled"
+          )
+        )?.returnValues[0]
+
+        const nonce = results.results["kettle"].callsReturnContext.find(
+          (callReturn) => equalAddresses(callReturn.reference, maker) && callReturn.methodName === "nonces"
+        )?.returnValues[0]
+
+        if (!makerBalance || !makerAllowance || !cancelledOrFulfilled || !nonce) return [
+          offer.hash,
+          {
+            reason: "Invalid return data",
+            valid: false
+          }
+        ]
+
+        if (BigNumber.from(makerBalance).lt(amount)) return [
+          offer.hash,
+          {
+            reason: "Insufficient maker balance",
+            valid: false
+          }
+        ]
+
+        if (BigNumber.from(makerBalance).lt(amount)) return [
+          offer.hash,
+          {
+            reason: "Insufficient maker allowance",
+            valid: false
+          }
+        ]
+
+        if (BigNumber.from(cancelledOrFulfilled).eq(1)) return [
+          offer.hash,
+          {
+            reason: "Offer has been cancelled",
+            valid: false
+          }
+        ]
+
+        if (!BigNumber.from(nonce).eq(offer.nonce)) return [
+          offer.hash,
+          {
+            reason: "Invalid nonce",
+            valid: false
+          }
+        ]
+
+        return [
+          offer.hash,
+          {
+            hash: offer.hash,
+            valid: true
+          }
+        ]
+      }
+    ));
+    
+
   }
 
   public async validateBidOffer(offer: MarketOffer) {

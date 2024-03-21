@@ -58,6 +58,17 @@ export type LoanOffer = {
   nonce: string | number | bigint;
 }
 
+export type LoanOfferWithHash = {
+  hash: string;
+  lender: string;
+  collateral: Collateral;
+  terms: LoanOfferTerms;
+  fee: FeeTerms;
+  expiration: string | number | bigint;
+  salt: string | number | bigint;
+  nonce: string | number | bigint;
+}
+
 export type BorrowOfferTerms = {
   currency: string;
   amount: string | number | bigint;
@@ -77,6 +88,17 @@ export type BorrowOffer = {
   nonce: string | number | bigint;
 }
 
+export type BorrowOfferWithHash = {
+  hash: string;
+  borrower: string;
+  collateral: Collateral;
+  terms: BorrowOfferTerms;
+  fee: FeeTerms;
+  expiration: string | number | bigint;
+  salt: string | number | bigint;
+  nonce: string | number | bigint;
+}
+
 export type MarketOfferTerms = {
   currency: string;
   amount: string | number | bigint;
@@ -86,6 +108,18 @@ export type MarketOfferTerms = {
 }
 
 export type MarketOffer = {
+  side: Side;
+  maker: string;
+  collateral: Collateral;
+  terms: MarketOfferTerms;
+  fee: FeeTerms;
+  expiration: string | number | bigint;
+  salt: string | number | bigint;
+  nonce: string | number | bigint;
+}
+
+export type MarketOfferWithHash = {
+  hash: string;
   side: Side;
   maker: string;
   collateral: Collateral;
