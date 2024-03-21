@@ -20,10 +20,12 @@ import {
 } from 'ethereum-multicall';
 
 import {
+  LienCollateralMap,
   buildMakerBalancesAndAllowancesCallContext,
   buildMakerCollateralBalancesAndAllowancesCallContext,
   buildCancelledFulfilledAndNonceMulticallContext,
-  buildAmountTakenMulticallCallContext
+  buildAmountTakenMulticallCallContext,
+  buildCurrentDebtAmountMulticallCallContext
 } from "./utils/multicall";
 
 import {
@@ -71,7 +73,8 @@ import type {
   CancelOrderAction,
   LoanOfferWithHash,
   BorrowOfferWithHash,
-  MarketOfferWithHash
+  MarketOfferWithHash,
+  LienWithLender
 } from "./types";
 
 import {
@@ -101,6 +104,11 @@ import {
 import {
   equalAddresses
 } from "./utils/equalAddresses";
+
+import {
+  isCurrentLien,
+  lienMatchesOfferCollateral
+} from "./utils/validations";
 
 export class Kettle {
 
@@ -155,10 +163,23 @@ export class Kettle {
 
     const offer = await this._formatLoanOffer(offerer!, input);
 
+    let _amount = offer.terms.maxAmount;
+    if (
+      input.lien 
+      && isCurrentLien(input.lien ) 
+      && lienMatchesOfferCollateral(input.lien , offer.collateral.collection, offer.collateral.identifier, offer.terms.currency)
+      && equalAddresses(input.lien .lender, offer.lender)
+    ) {
+      let { debt } = await this.contract.currentDebtAmount(input.lien);
+      _amount = BigInt(debt) < BigInt(offer.terms.maxAmount) 
+        ? BigInt(offer.terms.maxAmount) - BigInt(debt)
+        : BigInt(0);
+    }
+
     const balance = await currencyBalance(
       offerer,
       offer.terms.currency,
-      offer.terms.totalAmount,
+      _amount,
       this.provider
     );
 
@@ -174,7 +195,7 @@ export class Kettle {
     );
 
     const approvalActions = [];
-    if (allowance < BigInt(offer.terms.totalAmount)) {
+    if (allowance < BigInt(_amount)) {
       const allowanceAction = await getAllowanceAction(
           offer.terms.currency,
           operator,
@@ -1062,7 +1083,7 @@ export class Kettle {
     };
   }
 
-  public async validateLoanOffers(offers: LoanOfferWithHash[]) {
+  public async validateLoanOffers(offers: LoanOfferWithHash[], lienCollateralMap?: LienCollateralMap) {
     const multicall = new Multicall({
       nodeUrl: "https://sepolia.blast.io",
       tryAggregate: true
@@ -1077,15 +1098,20 @@ export class Kettle {
           offers.map((offer) => ({ maker: offer.lender, salt: offer.salt })),
           this.contractAddress
         ),
-      ...buildAmountTakenMulticallCallContext(offers, this.contractAddress)
+      ...buildAmountTakenMulticallCallContext(offers, this.contractAddress),
+      ...(lienCollateralMap
+          ? buildCurrentDebtAmountMulticallCallContext(lienCollateralMap, this.contractAddress)
+          : []
+        )
     ];
 
     const results: ContractCallResults = await multicall.call(callContext);
 
     return Object.fromEntries(offers.map(
       (offer) => {
-        const { lender, terms } = offer;
+        const { lender, terms, collateral } = offer;
         const { currency, maxAmount, totalAmount, minAmount } = terms;
+        const { collection, identifier } = collateral;
 
         const lenderBalance = results.results[currency].callsReturnContext.find(
           (callReturn) => callReturn.reference === lender && callReturn.methodName === "balanceOf"
@@ -1110,6 +1136,21 @@ export class Kettle {
           (callReturn) => callReturn.reference === lender && callReturn.methodName === "nonces"
         )?.returnValues[0]
 
+        let currentDebt;
+        let lien;
+
+        let collateralId = `${collection}/${identifier}`.toLowerCase();
+        if (lienCollateralMap?.[collateralId]) {
+          let _lien = lienCollateralMap?.[collateralId];
+          if (isCurrentLien(_lien) && lienMatchesOfferCollateral(_lien, collection, identifier, currency)) {
+            lien = _lien;
+
+            currentDebt = results.results["kettleCurrentDebtAmount"].callsReturnContext.find(
+              (callReturn) => callReturn.reference === collateralId && callReturn.methodName === "currentDebtAmount"
+            )?.returnValues[0]
+          }
+        }
+
         if (!lenderBalance || !lenderAllowance || !amountTaken || !cancelledOrFulfilled || !nonce) return [
           offer.hash,
           {
@@ -1118,21 +1159,57 @@ export class Kettle {
           }
         ]
 
-        if (BigNumber.from(lenderBalance).lt(maxAmount)) return [
-          offer.hash,
-          {
-            reason: "Insufficient lender balance",
-            valid: false
+        // check for valid balance (against lien if applicable)
+        if (BigNumber.from(lenderBalance).lt(maxAmount)) {
+          if (lien && currentDebt && equalAddresses(lender, lien.lender)) {
+            if (BigNumber.from(currentDebt).lt(maxAmount)) {
+              const diff = BigNumber.from(maxAmount).sub(currentDebt);
+              if (BigNumber.from(lenderBalance).lt(diff)) {
+                return [
+                  offer.hash,
+                  {
+                    reason: "Insufficient lender balance",
+                    valid: false
+                  }
+                ]
+              }
+            }
+          } else {
+            return [
+              offer.hash,
+              {
+                reason: "Insufficient lender balance",
+                valid: false
+              }
+            ]
           }
-        ]
+        }
 
-        if (BigNumber.from(lenderAllowance).lt(maxAmount)) return [
-          offer.hash,
-          {
-            reason: "Insufficient lender allowance",
-            valid: false
+        // check for valid allowance (against lien if applicable)
+        if (BigNumber.from(lenderAllowance).lt(maxAmount)) {
+          if (lien && currentDebt && equalAddresses(lender, lien.lender)) {
+            if (BigNumber.from(currentDebt).lt(maxAmount)) {
+              const diff = BigNumber.from(maxAmount).sub(currentDebt);
+              if (BigNumber.from(lenderAllowance).lt(diff)) {
+                return [
+                  offer.hash,
+                  {
+                    reason: "Insufficient lender allowance",
+                    valid: false
+                  }
+                ]
+              }
+            }
+          } else {
+            return [
+              offer.hash,
+              {
+                reason: "Insufficient lender allowance",
+                valid: false
+              }
+            ]
           }
-        ]
+        }
 
         if (BigNumber.from(totalAmount).sub(amountTaken).lt(minAmount)) return [
           offer.hash,
@@ -1169,14 +1246,27 @@ export class Kettle {
     ));
   }
 
-  public async validateLoanOffer(offer: LoanOffer) {
+  public async validateLoanOffer(offer: LoanOffer, lien?: LienWithLender) {
     const operator = await this.contract.getAddress();
+
+    let _amount = offer.terms.maxAmount;
+    if (
+      lien 
+      && isCurrentLien(lien) 
+      && lienMatchesOfferCollateral(lien, offer.collateral.collection, offer.collateral.identifier, offer.terms.currency)
+      && equalAddresses(lien.lender, offer.lender)
+    ) {
+      let { debt } = await this.contract.currentDebtAmount(lien);
+      _amount = BigInt(debt) < BigInt(offer.terms.maxAmount) 
+        ? BigInt(offer.terms.maxAmount) - BigInt(debt)
+        : BigInt(0);
+    }
 
     const [lenderBalance, lenderAllowance] = await Promise.all([
       currencyBalance(
         offer.lender,
         offer.terms.currency,
-        offer.terms.maxAmount,
+        _amount,
         this.provider
       ),
       currencyAllowance(
@@ -1191,7 +1281,7 @@ export class Kettle {
       throw new Error("Insufficient lender balance")
     }
 
-    if (lenderAllowance < BigInt(offer.terms.maxAmount)) {
+    if (lenderAllowance < BigInt(_amount)) {
       throw new Error("Insufficient lender allowance")
     }
 
@@ -1372,7 +1462,7 @@ export class Kettle {
     }
   }
 
-  public async validateAskOffers(offers: MarketOfferWithHash[]) {
+  public async validateAskOffers(offers: MarketOfferWithHash[], lienCollateralMap?: LienCollateralMap) {
     const multicall = new Multicall({
       nodeUrl: "https://sepolia.blast.io",
       tryAggregate: true
@@ -1391,6 +1481,10 @@ export class Kettle {
       ...buildCancelledFulfilledAndNonceMulticallContext(
           offers.map((offer) => ({ maker: offer.maker, salt: offer.salt })),
           this.contractAddress
+        ),
+      ...(lienCollateralMap
+          ? buildCurrentDebtAmountMulticallCallContext(lienCollateralMap, this.contractAddress)
+          : []
         )
     ];
 
@@ -1398,8 +1492,9 @@ export class Kettle {
 
     return Object.fromEntries(offers.map(
       (offer) => {
-        const { maker } = offer;
-        const { collection, itemType, identifier, size } = offer.collateral;
+        const { maker, collateral, terms } = offer;
+        const { collection, itemType, identifier, size } = collateral;
+        const { currency, amount } = terms;
 
         const collateralOwner = results.results[collection].callsReturnContext.find(
           (callReturn) => callReturn.reference === identifier && callReturn.methodName === "ownerOf"
@@ -1418,7 +1513,22 @@ export class Kettle {
             callReturn.reference === `${maker}-${offer.salt}`.toLowerCase()
             && callReturn.methodName === "cancelledOrFulfilled"
           )
-        )?.returnValues[0]
+        )?.returnValues[0];
+
+        let currentDebt;
+        let lien;
+
+        let collateralId = `${collection}/${identifier}`.toLowerCase();
+        if (lienCollateralMap?.[collateralId]) {
+          let _lien = lienCollateralMap?.[collateralId];
+          if (isCurrentLien(_lien) && lienMatchesOfferCollateral(_lien, collection, identifier, currency)) {
+            lien = _lien;
+
+            currentDebt = results.results["kettleCurrentDebtAmount"].callsReturnContext.find(
+              (callReturn) => callReturn.reference === collateralId && callReturn.methodName === "currentDebtAmount"
+            )?.returnValues[0]
+          }
+        }
 
         const nonce = results.results["kettle"].callsReturnContext.find(
           (callReturn) => equalAddresses(callReturn.reference, maker) && callReturn.methodName === "nonces"
@@ -1439,28 +1549,48 @@ export class Kettle {
           }
         ];
 
+        let borrowerDoesNotOwnCollateral = false;
         if (itemType === ItemType.ERC721) {
-          if (!equalAddresses(collateralOwner, maker)) return [
-            offer.hash,
-            {
-              reason: "Borrower does not own collateral",
-              valid: false
-            }
-          ]
+          if (!equalAddresses(collateralOwner, maker)) {
+            borrowerDoesNotOwnCollateral = true;
+          }
         } else {
-          if (BigInt(collateralBalance) < BigInt(size)) return [
-            offer.hash,
-            {
-              reason: "Borrower does not own collateral",
-              valid: false
-            }
-          ]
+          if (BigNumber.from(collateralBalance).lt(size)) {
+            borrowerDoesNotOwnCollateral = true;
+          }
         }
 
-        if (!collateralAllowance) return [
+        let collateralInLien = false;
+        if (borrowerDoesNotOwnCollateral) {
+          if (
+            lien
+            && currentDebt
+            && equalAddresses(maker, lien.borrower)
+          ) {
+            collateralInLien = true;
+            if (BigNumber.from(currentDebt).gt(amount)) return [
+              offer.hash,
+              {
+                reason: "Ask does not cover debt",
+                valid: false
+              }
+            ]
+          }
+          else {
+            return [
+              offer.hash,
+              {
+                reason: "Seller does not own collateral",
+                valid: false
+              }
+            ]
+          }
+        }
+
+        if (!collateralAllowance && !collateralInLien) return [
           offer.hash,
           {
-            reason: "Borrower has not approved collateral",
+            reason: "Seller has not approved collateral",
             valid: false
           }
         ]
