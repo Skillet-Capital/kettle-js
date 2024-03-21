@@ -1233,14 +1233,27 @@ export class Kettle {
     ));
   }
 
-  public async validateLoanOffer(offer: LoanOffer) {
+  public async validateLoanOffer(offer: LoanOffer, lien?: LienWithLender) {
     const operator = await this.contract.getAddress();
+
+    let _amount = offer.terms.maxAmount;
+    if (
+      lien 
+      && isCurrentLien(lien) 
+      && lienMatchesOfferCollateral(lien, offer.collateral.collection, offer.collateral.identifier, offer.terms.currency)
+      && equalAddresses(lien.lender, offer.lender)
+    ) {
+      let { debt } = await this.contract.currentDebtAmount(lien);
+      _amount = BigInt(debt) < BigInt(offer.terms.maxAmount) 
+        ? BigInt(offer.terms.maxAmount) - BigInt(debt)
+        : BigInt(0);
+    }
 
     const [lenderBalance, lenderAllowance] = await Promise.all([
       currencyBalance(
         offer.lender,
         offer.terms.currency,
-        offer.terms.maxAmount,
+        _amount,
         this.provider
       ),
       currencyAllowance(
@@ -1255,7 +1268,7 @@ export class Kettle {
       throw new Error("Insufficient lender balance")
     }
 
-    if (lenderAllowance < BigInt(offer.terms.maxAmount)) {
+    if (lenderAllowance < BigInt(_amount)) {
       throw new Error("Insufficient lender allowance")
     }
 
