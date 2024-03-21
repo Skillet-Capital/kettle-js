@@ -1379,10 +1379,15 @@ export class Kettle {
     });
 
     const callContext: ContractCallContext[] = [
-      ...buildMakerBalancesAndAllowancesCallContext(
-          offers.map((offer) => ({ maker: offer.maker, currency: offer.terms.currency})),
-          this.contractAddress
-        ),
+      ...buildMakerCollateralBalancesAndAllowancesCallContext(
+        offers.map((offer) => ({ 
+          maker: offer.maker, 
+          collection: offer.collateral.collection,
+          itemType: offer.collateral.itemType,
+          identifier: offer.collateral.identifier
+        })),
+        this.contractAddress
+      ),
       ...buildCancelledFulfilledAndNonceMulticallContext(
           offers.map((offer) => ({ maker: offer.maker, salt: offer.salt })),
           this.contractAddress
@@ -1393,7 +1398,7 @@ export class Kettle {
 
     return Object.fromEntries(offers.map(
       (offer) => {
-        const { maker, terms } = offer;
+        const { maker } = offer;
         const { collection, itemType, identifier, size } = offer.collateral;
 
         const collateralOwner = results.results[collection].callsReturnContext.find(
