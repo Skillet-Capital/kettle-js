@@ -1437,7 +1437,7 @@ export class Kettle {
     }
   }
 
-  public async validateAskOffers(offers: MarketOfferWithHash[]) {
+  public async validateAskOffers(offers: MarketOfferWithHash[], lienCollateralMap?: LienCollateralMap) {
     const multicall = new Multicall({
       nodeUrl: "https://sepolia.blast.io",
       tryAggregate: true
@@ -1456,6 +1456,10 @@ export class Kettle {
       ...buildCancelledFulfilledAndNonceMulticallContext(
           offers.map((offer) => ({ maker: offer.maker, salt: offer.salt })),
           this.contractAddress
+        ),
+      ...(lienCollateralMap
+          ? buildCurrentDebtAmountMulticallCallContext(lienCollateralMap, this.contractAddress)
+          : []
         )
     ];
 
@@ -1463,8 +1467,9 @@ export class Kettle {
 
     return Object.fromEntries(offers.map(
       (offer) => {
-        const { maker } = offer;
-        const { collection, itemType, identifier, size } = offer.collateral;
+        const { maker, collateral, terms } = offer;
+        const { collection, itemType, identifier, size } = collateral;
+        const { amount } = terms;
 
         const collateralOwner = results.results[collection].callsReturnContext.find(
           (callReturn) => callReturn.reference === identifier && callReturn.methodName === "ownerOf"
@@ -1483,7 +1488,15 @@ export class Kettle {
             callReturn.reference === `${maker}-${offer.salt}`.toLowerCase()
             && callReturn.methodName === "cancelledOrFulfilled"
           )
-        )?.returnValues[0]
+        )?.returnValues[0];
+
+        let currentDebt;
+        let collateralId = `${collection}/${identifier}`.toLowerCase();
+        if (lienCollateralMap?.[collateralId]) {
+          currentDebt = results.results["kettleCurrentDebtAmount"].callsReturnContext.find(
+            (callReturn) => callReturn.reference === collateralId && callReturn.methodName === "currentDebtAmount"
+          )?.returnValues[0]
+        }
 
         const nonce = results.results["kettle"].callsReturnContext.find(
           (callReturn) => equalAddresses(callReturn.reference, maker) && callReturn.methodName === "nonces"
@@ -1504,31 +1517,62 @@ export class Kettle {
           }
         ];
 
+        let borrowerDoesNotOwnCollateral = false;
         if (itemType === ItemType.ERC721) {
-          if (!equalAddresses(collateralOwner, maker)) return [
-            offer.hash,
-            {
-              reason: "Borrower does not own collateral",
-              valid: false
-            }
-          ]
+          if (!equalAddresses(collateralOwner, maker)) {
+            borrowerDoesNotOwnCollateral = true;
+          }
         } else {
-          if (BigInt(collateralBalance) < BigInt(size)) return [
-            offer.hash,
-            {
-              reason: "Borrower does not own collateral",
-              valid: false
-            }
-          ]
+          if (BigInt(collateralBalance) < BigInt(size)) {
+            borrowerDoesNotOwnCollateral = true;
+          }
         }
 
-        if (!collateralAllowance) return [
-          offer.hash,
-          {
-            reason: "Borrower has not approved collateral",
-            valid: false
+        if (borrowerDoesNotOwnCollateral) {
+          if (lienCollateralMap?.[collateralId] && currentDebt) {
+            if (equalAddresses(maker, lienCollateralMap?.[collateralId]?.borrower)) {
+              if (BigInt(currentDebt) > BigInt(amount)) {
+                return [
+                  offer.hash,
+                  {
+                    reason: "Borrower does not own collateral",
+                    valid: false
+                  }
+                ]
+              }
+            } else {
+              return [
+                offer.hash,
+                {
+                  reason: "Borrower does not own collateral",
+                  valid: false
+                }
+              ]
+            }
           }
-        ]
+        }
+
+        if (!collateralAllowance) {
+          if (lienCollateralMap?.[collateralId]) {
+            if (!equalAddresses(maker, lienCollateralMap?.[collateralId]?.borrower)) {
+              return [
+                offer.hash,
+                {
+                  reason: "Seller has not approved collateral",
+                  valid: false
+                }
+              ]
+            }
+          } else {
+            return [
+              offer.hash,
+              {
+                reason: "Seller has not approved collateral",
+                valid: false
+              }
+            ]
+          }
+        }
 
         if (BigNumber.from(cancelledOrFulfilled).eq(1)) return [
           offer.hash,
