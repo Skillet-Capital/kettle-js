@@ -153,7 +153,7 @@ export function buildCancelledFulfilledAndNonceMulticallContext(
 ): ContractCallContext[] {
 
   return [({
-    reference: "kettleAmountTaken",
+    reference: "kettle",
     contractAddress: kettleAddress,
     abi: [
       {
@@ -225,7 +225,7 @@ export function buildAmountTakenMulticallCallContext(
 ): ContractCallContext[] {
 
   return [({
-    reference: "kettle",
+    reference: "kettleAmountTaken",
     contractAddress: kettleAddress,
     abi: [
       {
