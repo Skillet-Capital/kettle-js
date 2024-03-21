@@ -28,12 +28,14 @@ interface CurrencyMap {
 
 interface CollateralMapValue {
   maker: string;
-  itemType: ItemType;
   identifier: string | number | bigint;
 }
 
 interface CollateralMap {
-  [collection: string]: CollateralMapValue[];
+  [collection: string]: {
+    itemType: ItemType;
+    collateral: CollateralMapValue[];
+  };
 }
 
 export function buildMakerCollateralBalancesAndAllowancesCallContext(
@@ -41,14 +43,17 @@ export function buildMakerCollateralBalancesAndAllowancesCallContext(
   operator: string
 ): ContractCallContext[] {
 
-  const _collateralMap: { [collection: string]: CollateralMapValue[] } = offerCollaterals.reduce(
+  const _collateralMap: { [collection: string]: { itemType: ItemType, collateral: CollateralMapValue[] } } = offerCollaterals.reduce(
     (acc: CollateralMap, offerCollateral) => {
       const { maker, collection, itemType, identifier } = offerCollateral;
 
       if (!acc[collection]) {
-        acc[collection] = [{ maker, itemType, identifier }];
+        acc[collection] = {
+          itemType,
+          collateral: [{ maker, identifier }]
+        };
       } else {
-        acc[collection].push({ maker, itemType, identifier });
+        acc[collection].collateral.push({ maker, identifier });
       }
 
       return acc;
@@ -56,52 +61,50 @@ export function buildMakerCollateralBalancesAndAllowancesCallContext(
     {}
   );
 
-  return Object.entries(_collateralMap).map(([collection, values]) => {
-    return values.map(({ maker, itemType, identifier }) => {
-      if (itemType === ItemType.ERC721) {
-        return ({
-          reference: collection,
-          contractAddress: collection,
-          abi: [
-            { name: 'ownerOf', "stateMutability": "view", type: 'function', inputs: [{ type: 'uint256', name: 'tokenId' }], outputs: [{ type: 'address', name: 'owner' }] },
-            { name: 'isApprovedForAll', "stateMutability": "view", type: 'function', inputs: [{ type: 'address', name: 'owner' }, { type: 'address', name: 'operator' }], outputs: [{ type: 'bool', name: 'approved' }] }
-          ],
-          calls: [
-            {
-              reference: identifier.toString(),
-              methodName: 'ownerOf',
-              methodParameters: [identifier]
-            },
-            {
-              reference: maker,
-              methodName: 'isApprovedForAll',
-              methodParameters: [maker, operator]
-            }
-          ]
-        })
-      } else {
-        return ({
-          reference: collection,
-          contractAddress: collection,
-          abi: [
-            { name: 'balanceOf', "stateMutability": "view", type: 'function', inputs: [{ type: 'address', name: 'account' }, { type: 'uint256', name: 'tokenId' }], outputs: [{ type: 'uint256', name: 'balance' }] },
-            { name: 'isApprovedForAll', "stateMutability": "view", type: 'function', inputs: [{ type: 'address', name: 'owner' }, { type: 'address', name: 'operator' }], outputs: [{ type: 'bool', name: 'approved' }] }
-          ],
-          calls: [
-            {
-              reference: `${maker}-${identifier}`.toLowerCase(),
-              methodName: 'balanceOf',
-              methodParameters: [maker]
-            },
-            {
-              reference: maker,
-              methodName: 'isApprovedForAll',
-              methodParameters: [maker, operator]
-            }
-          ]
-        })
-      }
-    })
+  return Object.entries(_collateralMap).map(([collection, { itemType, collateral }]) => {
+    if (itemType === ItemType.ERC721) {
+      return ({
+        reference: collection,
+        contractAddress: collection,
+        abi: [
+          { name: 'ownerOf', "stateMutability": "view", type: 'function', inputs: [{ type: 'uint256', name: 'tokenId' }], outputs: [{ type: 'address', name: 'owner' }] },
+          { name: 'isApprovedForAll', "stateMutability": "view", type: 'function', inputs: [{ type: 'address', name: 'owner' }, { type: 'address', name: 'operator' }], outputs: [{ type: 'bool', name: 'approved' }] }
+        ],
+        calls: [
+          ...collateral.map(({ identifier }) => ({
+            reference: identifier.toString(),
+            methodName: 'ownerOf',
+            methodParameters: [identifier]
+          })),
+          ...collateral.map(({ maker }) => ({
+            reference: maker,
+            methodName: 'isApprovedForAll',
+            methodParameters: [maker, operator]
+          }))
+        ]
+      })
+    } else {
+      return ({
+        reference: collection,
+        contractAddress: collection,
+        abi: [
+          { name: 'balanceOf', "stateMutability": "view", type: 'function', inputs: [{ type: 'address', name: 'account' }, { type: 'uint256', name: 'tokenId' }], outputs: [{ type: 'uint256', name: 'balance' }] },
+          { name: 'isApprovedForAll', "stateMutability": "view", type: 'function', inputs: [{ type: 'address', name: 'owner' }, { type: 'address', name: 'operator' }], outputs: [{ type: 'bool', name: 'approved' }] }
+        ],
+        calls: [
+          ...collateral.map(({ maker, identifier }) => ({
+            reference: `${maker}-${identifier}`.toString(),
+            methodName: 'balanceOf',
+            methodParameters: [maker, identifier]
+          })),
+          ...collateral.map(({ maker }) => ({
+            reference: maker,
+            methodName: 'isApprovedForAll',
+            methodParameters: [maker, operator]
+          }))
+        ]
+      })
+    }
   }).flat();
 }
 
