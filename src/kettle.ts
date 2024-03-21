@@ -106,6 +106,7 @@ import {
 } from "./utils/equalAddresses";
 
 import {
+  offerIsExpired,
   isCurrentLien,
   lienMatchesOfferCollateral
 } from "./utils/validations";
@@ -1170,6 +1171,15 @@ export class Kettle {
           }
         ]
 
+        // check if offer is expired
+        if (offerIsExpired(offer.expiration)) return [
+          offer.hash,
+          {
+            reason: "Offer has expired",
+            valid: false
+          }
+        ]
+
         // check for valid balance (against lien if applicable)
         if (BigNumber.from(lenderBalance).lt(maxAmount)) {
           if (lien && currentDebt && equalAddresses(lender, lien.lender)) {
@@ -1259,6 +1269,10 @@ export class Kettle {
 
   public async validateLoanOffer(offer: LoanOffer, lien?: LienWithLender) {
     const operator = await this.contract.getAddress();
+
+    if (offerIsExpired(offer.expiration)) {
+      throw new Error("Offer has expired");
+    }
 
     let _amount = offer.terms.maxAmount;
     if (
@@ -1385,6 +1399,15 @@ export class Kettle {
           }
         ];
 
+        // check if offer is expired
+        if (offerIsExpired(offer.expiration)) return [
+          offer.hash,
+          {
+            reason: "Offer has expired",
+            valid: false
+          }
+        ]
+
         if (itemType === ItemType.ERC721) {
           if (!equalAddresses(collateralOwner, borrower)) return [
             offer.hash,
@@ -1441,33 +1464,42 @@ export class Kettle {
   public async validateBorrowOffer(offer: BorrowOffer) {
     const operator = await this.contract.getAddress();
 
-    const borrowerBalance = await collateralBalance(
-      offer.borrower,
-      offer.collateral,
-      this.provider
-    );
+    if (offerIsExpired(offer.expiration)) {
+      throw new Error("Offer has expired");
+    }
+
+    const [borrowerBalance, borrowerAllowance]  = await Promise.all([
+      collateralBalance(
+        offer.borrower,
+        offer.collateral,
+        this.provider
+      ),
+      collateralApprovedForAll(
+        offer.borrower,
+        offer.collateral,
+        operator,
+        this.provider
+      )
+    ]);
+
 
     if (!borrowerBalance) {
       throw new Error("Borrower does not own collateral")
     }
 
-    const borrowerAllowance = await collateralApprovedForAll(
-      offer.borrower,
-      offer.collateral,
-      operator,
-      this.provider
-    );
-
     if (!borrowerAllowance) {
       throw new Error("Borrower has not approved collateral")
     }
 
-    const cancelled = await this.contract.cancelledOrFulfilled(offer.borrower, offer.salt);
+    const [cancelled, nonce] = await Promise.all([
+      this.contract.cancelledOrFulfilled(offer.borrower, offer.salt),
+      this.contract.nonces(offer.borrower)
+    ]);
+
     if (cancelled) {
       throw new Error("Offer has been cancelled");
     }
 
-    const nonce = await this.contract.nonces(offer.borrower);
     if (offer.nonce != nonce) {
       throw new Error("Invalid nonce");
     }
@@ -1560,6 +1592,15 @@ export class Kettle {
           }
         ];
 
+        // check if offer is expired
+        if (offerIsExpired(offer.expiration)) return [
+          offer.hash,
+          {
+            reason: "Offer has expired",
+            valid: false
+          }
+        ]
+
         let borrowerDoesNotOwnCollateral = false;
         if (itemType === ItemType.ERC721) {
           if (!equalAddresses(collateralOwner, maker)) {
@@ -1636,11 +1677,23 @@ export class Kettle {
   public async validateAskOffer(offer: MarketOffer, lien?: Lien) {
     const operator = await this.contract.getAddress();
 
-    const sellerBalance = await collateralBalance(
-      offer.maker,
-      offer.collateral,
-      this.provider
-    );
+    if (offerIsExpired(offer.expiration)) {
+      throw new Error("Offer has expired");
+    }
+
+    const [sellerBalance, sellerAllowance] = await Promise.all([
+      collateralBalance(
+        offer.maker,
+        offer.collateral,
+        this.provider
+      ),
+      collateralApprovedForAll(
+        offer.maker,
+        offer.collateral,
+        operator,
+        this.provider
+      )
+    ]);
 
     // if seller does not own the collatera, the lien must own the collateral
     if (!sellerBalance) {
@@ -1670,25 +1723,21 @@ export class Kettle {
       }
     }
 
-    const sellerAllowance = await collateralApprovedForAll(
-      offer.maker,
-      offer.collateral,
-      operator,
-      this.provider
-    );
-
     if (!sellerAllowance) {
       if (!lien) {
         throw new Error("Seller has not approved collateral")
       }
     }
 
-    const cancelled = await this.contract.cancelledOrFulfilled(offer.maker, offer.salt);
+    const [cancelled, nonce] = await Promise.all([
+      this.contract.cancelledOrFulfilled(offer.maker, offer.salt),
+      this.contract.nonces(offer.maker)
+    ]);
+
     if (cancelled) {
       throw new Error("Offer has been cancelled");
     }
 
-    const nonce = await this.contract.nonces(offer.maker);
     if (offer.nonce != nonce) {
       throw new Error("Invalid nonce");
     }
@@ -1745,6 +1794,15 @@ export class Kettle {
           }
         ]
 
+        // check if offer is expired
+        if (offerIsExpired(offer.expiration)) return [
+          offer.hash,
+          {
+            reason: "Offer has expired",
+            valid: false
+          }
+        ]
+
         if (BigNumber.from(makerBalance).lt(amount)) return [
           offer.hash,
           {
@@ -1793,34 +1851,42 @@ export class Kettle {
   public async validateBidOffer(offer: MarketOffer) {
     const operator = await this.contract.getAddress();
 
-    const buyerBalance = await currencyBalance(
-      offer.maker,
-      offer.terms.currency,
-      offer.terms.amount,
-      this.provider
-    );
+    if (offerIsExpired(offer.expiration)) {
+      throw new Error("Offer has expired");
+    }
+
+    const [buyerBalance, buyerAllowance] = await Promise.all([
+      currencyBalance(
+        offer.maker,
+        offer.terms.currency,
+        offer.terms.amount,
+        this.provider
+      ),
+      currencyAllowance(
+        offer.maker,
+        offer.terms.currency,
+        operator,
+        this.provider
+      )
+    ]);
 
     if (!buyerBalance) {
       throw new Error("Insufficient buyer balance")
     }
 
-    const buyerAllowance = await currencyAllowance(
-      offer.maker,
-      offer.terms.currency,
-      operator,
-      this.provider
-    );
-
     if (buyerAllowance < BigInt(offer.terms.amount)) {
       throw new Error("Insufficient buyer allowance")
     }
 
-    const cancelled = await this.contract.cancelledOrFulfilled(offer.maker, offer.salt);
+    const [cancelled, nonce] = await Promise.all([
+      this.contract.cancelledOrFulfilled(offer.maker, offer.salt),
+      this.contract.nonces(offer.maker)
+    ]);
+
     if (cancelled) {
       throw new Error("Offer has been cancelled");
     }
 
-    const nonce = await this.contract.nonces(offer.maker);
     if (offer.nonce != nonce) {
       throw new Error("Invalid nonce");
     }
