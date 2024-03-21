@@ -38,7 +38,7 @@ interface CollateralMap {
   };
 }
 
-interface LienCollateralMap {
+export interface LienCollateralMap {
   [identifier: string]: Lien;
 }
 
