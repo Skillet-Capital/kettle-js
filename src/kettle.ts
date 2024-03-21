@@ -20,10 +20,12 @@ import {
 } from 'ethereum-multicall';
 
 import {
+  LienCollateralMap,
   buildMakerBalancesAndAllowancesCallContext,
   buildMakerCollateralBalancesAndAllowancesCallContext,
   buildCancelledFulfilledAndNonceMulticallContext,
-  buildAmountTakenMulticallCallContext
+  buildAmountTakenMulticallCallContext,
+  buildCurrentDebtAmountMulticallCallContext
 } from "./utils/multicall";
 
 import {
@@ -1062,7 +1064,7 @@ export class Kettle {
     };
   }
 
-  public async validateLoanOffers(offers: LoanOfferWithHash[]) {
+  public async validateLoanOffers(offers: LoanOfferWithHash[], lienCollateralMap?: LienCollateralMap) {
     const multicall = new Multicall({
       nodeUrl: "https://sepolia.blast.io",
       tryAggregate: true
@@ -1077,7 +1079,11 @@ export class Kettle {
           offers.map((offer) => ({ maker: offer.lender, salt: offer.salt })),
           this.contractAddress
         ),
-      ...buildAmountTakenMulticallCallContext(offers, this.contractAddress)
+      ...buildAmountTakenMulticallCallContext(offers, this.contractAddress),
+      ...(lienCollateralMap
+          ? buildCurrentDebtAmountMulticallCallContext(lienCollateralMap, this.contractAddress)
+          : []
+        )
     ];
 
     const results: ContractCallResults = await multicall.call(callContext);

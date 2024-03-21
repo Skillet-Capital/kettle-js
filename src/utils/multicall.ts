@@ -2,7 +2,7 @@ import {
   ContractCallContext
 } from 'ethereum-multicall';
 
-import { ItemType } from '../types';
+import { ItemType, Lien } from '../types';
 import { LoanOfferWithHash, } from "../types";
 
 interface OfferCollaterals {
@@ -36,6 +36,10 @@ interface CollateralMap {
     itemType: ItemType;
     collateral: CollateralMapValue[];
   };
+}
+
+interface LienCollateralMap {
+  [identifier: string]: Lien;
 }
 
 export function buildMakerCollateralBalancesAndAllowancesCallContext(
@@ -257,6 +261,129 @@ export function buildAmountTakenMulticallCallContext(
           reference: offer.hash,
           methodName: "amountTaken",
           methodParameters: [offer.hash]
+        }),
+      )
+    ]
+  })]
+}
+
+export function buildCurrentDebtAmountMulticallCallContext(
+  lienCollaterals: LienCollateralMap,
+  kettleAddress: string
+): ContractCallContext[] {
+
+  return [({
+    reference: "kettleCurrentDebtAmount",
+    contractAddress: kettleAddress,
+    abi: [
+      {
+        "inputs": [
+          {
+            "components": [
+              {
+                "internalType": "address",
+                "name": "recipient",
+                "type": "address"
+              },
+              {
+                "internalType": "address",
+                "name": "borrower",
+                "type": "address"
+              },
+              {
+                "internalType": "address",
+                "name": "currency",
+                "type": "address"
+              },
+              {
+                "internalType": "address",
+                "name": "collection",
+                "type": "address"
+              },
+              {
+                "internalType": "enum ItemType",
+                "name": "itemType",
+                "type": "uint8"
+              },
+              {
+                "internalType": "uint256",
+                "name": "tokenId",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "size",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "principal",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "fee",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "rate",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "defaultRate",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "duration",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "gracePeriod",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "startTime",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct Lien",
+            "name": "lien",
+            "type": "tuple"
+          }
+        ],
+        "name": "currentDebtAmount",
+        "outputs": [
+          {
+            "internalType": "uint256",
+            "name": "debt",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "fee",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "interest",
+            "type": "uint256"
+          }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+      },
+    ],
+    calls: [
+      ...Object.entries(lienCollaterals).map(
+        ([identifier, lien]) => ({
+          reference: identifier,
+          methodName: "currentDebtAmount",
+          methodParameters: [lien]
         }),
       )
     ]
