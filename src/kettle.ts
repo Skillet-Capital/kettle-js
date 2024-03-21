@@ -1094,7 +1094,7 @@ export class Kettle {
           (callReturn) => callReturn.reference === lender && callReturn.methodName === "allowance"
         )?.returnValues[0]
 
-        const amountTaken = results.results["kettle"].callsReturnContext.find(
+        const amountTaken = results.results["kettleAmountTaken"].callsReturnContext.find(
           (callReturn) => callReturn.reference === offer.hash && callReturn.methodName === "amountTaken"
         )?.returnValues[0]
 
