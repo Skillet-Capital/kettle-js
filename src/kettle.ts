@@ -1090,8 +1090,9 @@ export class Kettle {
 
     return Object.fromEntries(offers.map(
       (offer) => {
-        const { lender, terms } = offer;
+        const { lender, terms, collateral } = offer;
         const { currency, maxAmount, totalAmount, minAmount } = terms;
+        const { collection, identifier } = collateral;
 
         const lenderBalance = results.results[currency].callsReturnContext.find(
           (callReturn) => callReturn.reference === lender && callReturn.methodName === "balanceOf"
@@ -1116,6 +1117,14 @@ export class Kettle {
           (callReturn) => callReturn.reference === lender && callReturn.methodName === "nonces"
         )?.returnValues[0]
 
+        let currentDebt;
+        let collateralId = `${collection}/${identifier}`.toLowerCase();
+        if (lienCollateralMap?.[collateralId]) {
+          currentDebt = results.results["kettleDebtAmount"].callsReturnContext.find(
+            (callReturn) => callReturn.reference === collateralId && callReturn.methodName === "currentDebtAmount"
+          )?.returnValues[0]
+        }
+
         if (!lenderBalance || !lenderAllowance || !amountTaken || !cancelledOrFulfilled || !nonce) return [
           offer.hash,
           {
@@ -1124,21 +1133,51 @@ export class Kettle {
           }
         ]
 
-        if (BigNumber.from(lenderBalance).lt(maxAmount)) return [
-          offer.hash,
-          {
-            reason: "Insufficient lender balance",
-            valid: false
+        if (BigNumber.from(lenderBalance).lt(maxAmount)) {
+          if (lienCollateralMap?.[collateralId] && currentDebt) {
+            if (BigNumber.from(currentDebt).lt(maxAmount)) {
+              const diff = BigNumber.from(maxAmount).sub(currentDebt);
+              if (BigNumber.from(lenderBalance).lt(diff)) return [
+                offer.hash,
+                {
+                  reason: "Insufficient lender balance",
+                  valid: false
+                }
+              ]
+            }
+          } else {
+            return [
+              offer.hash,
+              {
+                reason: "Insufficient lender balance",
+                valid: false
+              }
+            ]
           }
-        ]
+        }
 
-        if (BigNumber.from(lenderAllowance).lt(maxAmount)) return [
-          offer.hash,
-          {
-            reason: "Insufficient lender allowance",
-            valid: false
+        if (BigNumber.from(lenderAllowance).lt(maxAmount)) {
+          if (lienCollateralMap?.[collateralId] && currentDebt) {
+            if (BigNumber.from(currentDebt).lt(maxAmount)) {
+              const diff = BigNumber.from(maxAmount).sub(currentDebt);
+              if (BigNumber.from(lenderAllowance).lt(diff)) return [
+                offer.hash,
+                {
+                  reason: "Insufficient lender allowance",
+                  valid: false
+                }
+              ]
+            }
+          } else {
+            return [
+              offer.hash,
+              {
+                reason: "Insufficient lender allowance",
+                valid: false
+              }
+            ]
           }
-        ]
+        }
 
         if (BigNumber.from(totalAmount).sub(amountTaken).lt(minAmount)) return [
           offer.hash,
