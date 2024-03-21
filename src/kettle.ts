@@ -1266,7 +1266,14 @@ export class Kettle {
           offer.hash,
           {
             reason: "Invalid return data",
-            valid: false
+            valid: false,
+            data: {
+              collateralOwner,
+              collateralBalance,
+              collateralAllowance,
+              cancelledOrFulfilled,
+              nonce
+            }
           }
         ];
 
