@@ -71,6 +71,7 @@ import type {
   CancelOrderAction,
   LoanOfferWithHash,
   BorrowOfferWithHash,
+  MarketOfferWithHash
 } from "./types";
 
 import {
@@ -1099,7 +1100,10 @@ export class Kettle {
         )?.returnValues[0]
 
         const cancelledOrFulfilled = results.results["kettle"].callsReturnContext.find(
-          (callReturn) => callReturn.reference === lender && callReturn.methodName === "cancelledOrFulfilled"
+          (callReturn) => (
+            callReturn.reference === `${lender}-${offer.salt}`.toLowerCase()
+            && callReturn.methodName === "cancelledOrFulfilled"
+          )
         )?.returnValues[0]
 
         const nonce = results.results["kettle"].callsReturnContext.find(
@@ -1255,7 +1259,10 @@ export class Kettle {
         )?.returnValues[0];
 
         const cancelledOrFulfilled = results.results["kettle"].callsReturnContext.find(
-          (callReturn) => equalAddresses(callReturn.reference, borrower) && callReturn.methodName === "cancelledOrFulfilled"
+          (callReturn) => (
+            callReturn.reference === `${borrower}-${offer.salt}`.toLowerCase()
+            && callReturn.methodName === "cancelledOrFulfilled"
+          )
         )?.returnValues[0]
 
         const nonce = results.results["kettle"].callsReturnContext.find(
@@ -1365,6 +1372,121 @@ export class Kettle {
     }
   }
 
+  public async validateAskOffers(offers: MarketOfferWithHash[]) {
+    const multicall = new Multicall({
+      nodeUrl: "https://sepolia.blast.io",
+      tryAggregate: true
+    });
+
+    const callContext: ContractCallContext[] = [
+      ...buildMakerBalancesAndAllowancesCallContext(
+          offers.map((offer) => ({ maker: offer.maker, currency: offer.terms.currency})),
+          this.contractAddress
+        ),
+      ...buildCancelledFulfilledAndNonceMulticallContext(
+          offers.map((offer) => ({ maker: offer.maker, salt: offer.salt })),
+          this.contractAddress
+        )
+    ];
+
+    const results: ContractCallResults = await multicall.call(callContext);
+
+    return Object.fromEntries(offers.map(
+      (offer) => {
+        const { maker, terms } = offer;
+        const { collection, itemType, identifier, size } = offer.collateral;
+
+        const collateralOwner = results.results[collection].callsReturnContext.find(
+          (callReturn) => callReturn.reference === identifier && callReturn.methodName === "ownerOf"
+        )?.returnValues[0];
+
+        const collateralBalance = results.results[collection].callsReturnContext.find(
+          (callReturn) => callReturn.reference === `${maker}-${identifier}`.toLowerCase() && callReturn.methodName === "balanceOf"
+        )?.returnValues[0];
+
+        const collateralAllowance = results.results[collection].callsReturnContext.find(
+          (callReturn) => equalAddresses(callReturn.reference, maker) && callReturn.methodName === "isApprovedForAll"
+        )?.returnValues[0];
+
+        const cancelledOrFulfilled = results.results["kettle"].callsReturnContext.find(
+          (callReturn) => (
+            callReturn.reference === `${maker}-${offer.salt}`.toLowerCase()
+            && callReturn.methodName === "cancelledOrFulfilled"
+          )
+        )?.returnValues[0]
+
+        const nonce = results.results["kettle"].callsReturnContext.find(
+          (callReturn) => equalAddresses(callReturn.reference, maker) && callReturn.methodName === "nonces"
+        )?.returnValues[0]
+
+        if (!(collateralOwner || collateralBalance) || !collateralAllowance || !cancelledOrFulfilled || !nonce) return [
+          offer.hash,
+          {
+            reason: "Invalid return data",
+            valid: false,
+            data: {
+              collateralOwner,
+              collateralBalance,
+              collateralAllowance,
+              cancelledOrFulfilled,
+              nonce
+            }
+          }
+        ];
+
+        if (itemType === ItemType.ERC721) {
+          if (!equalAddresses(collateralOwner, maker)) return [
+            offer.hash,
+            {
+              reason: "Borrower does not own collateral",
+              valid: false
+            }
+          ]
+        } else {
+          if (BigInt(collateralBalance) < BigInt(size)) return [
+            offer.hash,
+            {
+              reason: "Borrower does not own collateral",
+              valid: false
+            }
+          ]
+        }
+
+        if (!collateralAllowance) return [
+          offer.hash,
+          {
+            reason: "Borrower has not approved collateral",
+            valid: false
+          }
+        ]
+
+        if (BigNumber.from(cancelledOrFulfilled).eq(1)) return [
+          offer.hash,
+          {
+            reason: "Offer has been cancelled",
+            valid: false
+          }
+        ]
+
+        if (!BigNumber.from(nonce).eq(offer.nonce)) return [
+          offer.hash,
+          {
+            reason: "Invalid nonce",
+            valid: false
+          }
+        ]
+
+        return [
+          offer.hash,
+          {
+            hash: offer.hash,
+            valid: true
+          }
+        ]
+      }
+    ));
+  }
+
   public async validateAskOffer(offer: MarketOffer, lien?: Lien) {
     const operator = await this.contract.getAddress();
 
@@ -1424,6 +1546,102 @@ export class Kettle {
     if (offer.nonce != nonce) {
       throw new Error("Invalid nonce");
     }
+  }
+
+  public async validateBidOffers(offers: MarketOfferWithHash[]) {
+    const multicall = new Multicall({
+      nodeUrl: "https://sepolia.blast.io",
+      tryAggregate: true
+    });
+
+    const callContext: ContractCallContext[] = [
+      ...buildMakerBalancesAndAllowancesCallContext(
+          offers.map((offer) => ({ maker: offer.maker, currency: offer.terms.currency})),
+          this.contractAddress
+        ),
+      ...buildCancelledFulfilledAndNonceMulticallContext(
+          offers.map((offer) => ({ maker: offer.maker, salt: offer.salt })),
+          this.contractAddress
+        )
+    ];
+
+    const results: ContractCallResults = await multicall.call(callContext);
+
+    return Object.fromEntries(offers.map(
+      (offer) => {
+        const { maker, terms } = offer;
+        const { currency, amount } = terms;
+
+        const makerBalance = results.results[currency].callsReturnContext.find(
+          (callReturn) => equalAddresses(callReturn.reference, maker) && callReturn.methodName === "balanceOf"
+        )?.returnValues[0]
+
+        const makerAllowance = results.results[currency].callsReturnContext.find(
+          (callReturn) => equalAddresses(callReturn.reference, maker) && callReturn.methodName === "allowance"
+        )?.returnValues[0]
+
+        const cancelledOrFulfilled = results.results["kettle"].callsReturnContext.find(
+          (callReturn) => (
+            callReturn.reference === `${maker}-${offer.salt}`.toLowerCase()
+            && callReturn.methodName === "cancelledOrFulfilled"
+          )
+        )?.returnValues[0]
+
+        const nonce = results.results["kettle"].callsReturnContext.find(
+          (callReturn) => equalAddresses(callReturn.reference, maker) && callReturn.methodName === "nonces"
+        )?.returnValues[0]
+
+        if (!makerBalance || !makerAllowance || !cancelledOrFulfilled || !nonce) return [
+          offer.hash,
+          {
+            reason: "Invalid return data",
+            valid: false
+          }
+        ]
+
+        if (BigNumber.from(makerBalance).lt(amount)) return [
+          offer.hash,
+          {
+            reason: "Insufficient maker balance",
+            valid: false
+          }
+        ]
+
+        if (BigNumber.from(makerBalance).lt(amount)) return [
+          offer.hash,
+          {
+            reason: "Insufficient maker allowance",
+            valid: false
+          }
+        ]
+
+        if (BigNumber.from(cancelledOrFulfilled).eq(1)) return [
+          offer.hash,
+          {
+            reason: "Offer has been cancelled",
+            valid: false
+          }
+        ]
+
+        if (!BigNumber.from(nonce).eq(offer.nonce)) return [
+          offer.hash,
+          {
+            reason: "Invalid nonce",
+            valid: false
+          }
+        ]
+
+        return [
+          offer.hash,
+          {
+            hash: offer.hash,
+            valid: true
+          }
+        ]
+      }
+    ));
+    
+
   }
 
   public async validateBidOffer(offer: MarketOffer) {

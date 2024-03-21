@@ -206,7 +206,7 @@ export function buildCancelledFulfilledAndNonceMulticallContext(
     calls: [
       ...offerContexts.map(
         (_context) => ({
-          reference: _context.maker,
+          reference: `${_context.maker}-${_context.salt}`.toLowerCase(),
           methodName: "cancelledOrFulfilled",
           methodParameters: [_context.maker, _context.salt]
         }),
