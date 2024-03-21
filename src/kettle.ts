@@ -166,9 +166,9 @@ export class Kettle {
     let _amount = offer.terms.maxAmount;
     if (
       input.lien 
-      && isCurrentLien(input.lien ) 
+      && isCurrentLien(input.lien) 
       && lienMatchesOfferCollateral(input.lien , offer.collateral.collection, offer.collateral.identifier, offer.terms.currency)
-      && equalAddresses(input.lien .lender, offer.lender)
+      && equalAddresses(input.lien.lender, offer.lender)
     ) {
       let { debt } = await this.contract.currentDebtAmount(input.lien);
       _amount = BigInt(debt) < BigInt(offer.terms.maxAmount) 
@@ -283,7 +283,8 @@ export class Kettle {
   public async createAskOffer(
     input: CreateMarketOfferInput,
     accountAddress?: string
-  ): Promise<(ApprovalAction | CreateOrderAction)[]>{
+  ): Promise<(ApprovalAction | CreateOrderAction)[]>
+  {
     const signer = await this._getSigner(accountAddress);
     const offerer = accountAddress ?? (await signer.getAddress());
     const operator = await this.contract.getAddress();
@@ -386,7 +387,8 @@ export class Kettle {
   public async createBidOffer(
     input: CreateMarketOfferInput,
     accountAddress?: string
-  ): Promise<(ApprovalAction | CreateOrderAction)[]>{
+  ): Promise<(ApprovalAction | CreateOrderAction)[]>
+  {
     const signer = await this._getSigner(accountAddress);
     const offerer = accountAddress ?? (await signer.getAddress());
     const operator = await this.contract.getAddress();
@@ -441,13 +443,12 @@ export class Kettle {
     return [...approvalActions, createOfferAction];
   }
 
-  // call order book (getLoanOffer) with hash to get the actual loan offer
-  // - { offer, signature }
   public async takeLoanOffer(
     offer: LoanOffer, 
     signature: string,
     accountAddress?: string
-  ): Promise<(ApprovalAction | TakeOrderAction)[]> {
+  ): Promise<(ApprovalAction | TakeOrderAction)[]> 
+  {
     const signer = await this._getSigner(accountAddress);
     const taker = accountAddress ?? (await signer.getAddress());
     const operator = await this.contract.getAddress();
@@ -501,17 +502,18 @@ export class Kettle {
 
   public async refinance(
     lienId: bigint | number,
-    lien: Lien,
+    lien: LienWithLender,
     offer: LoanOffer,
     signature: string,
     accountAddress?: string
-  ): Promise<(ApprovalAction | TakeOrderAction)[]> {
+  ): Promise<(ApprovalAction | TakeOrderAction)[]> 
+  {
     const signer = await this._getSigner(accountAddress);
     const taker = accountAddress ?? (await signer.getAddress());
     const operator = await this.contract.getAddress();
 
     // validate loan offer and refinancing
-    await this.validateLoanOffer(offer);
+    await this.validateLoanOffer(offer, lien);
     await this.validateRefinance(taker, lien, offer);
 
     const { debt } = await this.contract.currentDebtAmount(lien);
@@ -558,7 +560,8 @@ export class Kettle {
     offer: BorrowOffer,
     signature: string,
     accountAddress?: string
-  ): Promise<(ApprovalAction | TakeOrderAction)[]> {
+  ): Promise<(ApprovalAction | TakeOrderAction)[]> 
+  {
     const signer = await this._getSigner(accountAddress);
     const taker = accountAddress ?? (await signer.getAddress());
     const operator = await this.contract.getAddress();
@@ -619,7 +622,8 @@ export class Kettle {
     offer: MarketOffer, 
     signature: string,
     accountAddress?: string
-  ): Promise<(ApprovalAction | TakeOrderAction)[]> {
+  ): Promise<(ApprovalAction | TakeOrderAction)[]> 
+  {
     const signer = await this._getSigner(accountAddress);
     const taker = accountAddress ?? (await signer.getAddress());
     const operator = await this.contract.getAddress();
@@ -675,7 +679,8 @@ export class Kettle {
     offer: MarketOffer, 
     signature: string,
     accountAddress?: string
-  ): Promise<(ApprovalAction | TakeOrderAction)[]> {
+  ): Promise<(ApprovalAction | TakeOrderAction)[]> 
+  {
     const signer = await this._getSigner(accountAddress);
     const taker = accountAddress ?? (await signer.getAddress());
     const operator = await this.contract.getAddress();
@@ -738,7 +743,8 @@ export class Kettle {
     offer: MarketOffer, 
     signature: string,
     accountAddress?: string
-  ): Promise<(ApprovalAction | TakeOrderAction)[]> {
+  ): Promise<(ApprovalAction | TakeOrderAction)[]> 
+  {
     const signer = await this._getSigner(accountAddress);
     const taker = accountAddress ?? (await signer.getAddress());
     const operator = await this.contract.getAddress();
@@ -793,7 +799,8 @@ export class Kettle {
     offer: MarketOffer, 
     signature: string,
     accountAddress?: string
-  ): Promise<(ApprovalAction | TakeOrderAction)[]> {
+  ): Promise<(ApprovalAction | TakeOrderAction)[]> 
+  {
     const signer = await this._getSigner(accountAddress);
     const taker = accountAddress ?? (await signer.getAddress());
     const operator = await this.contract.getAddress();
@@ -844,7 +851,8 @@ export class Kettle {
     lienId: bigint | number,
     lien: Lien,
     accountAddress?: string
-  ): Promise<(ApprovalAction | RepayAction)[]>{
+  ): Promise<(ApprovalAction | RepayAction)[]>
+  {
     const signer = await this._getSigner(accountAddress);
     const taker = accountAddress ?? (await signer.getAddress());
     const operator = await this.contract.getAddress();
@@ -883,10 +891,12 @@ export class Kettle {
     lienId: bigint | number,
     lien: Lien,
     accountAddress?: string
-  ): Promise<ClaimAction[]> {
-    if (BigInt(lien.startTime) + BigInt(lien.duration) + BigInt(lien.gracePeriod) > getEpoch()) {
+  ): Promise<ClaimAction[]> 
+  {
+    if (!isCurrentLien(lien)) {
       throw new Error("Lien is not defaulted");
     }
+
     const signer = await this._getSigner(accountAddress);
 
     const claimAction = {
@@ -902,7 +912,8 @@ export class Kettle {
   public async cancelOffer(
     salt: string,
     accountAddress?: string
-  ): Promise<CancelOrderAction[]> {
+  ): Promise<CancelOrderAction[]> 
+  {
     const signer = await this._getSigner(accountAddress);
 
     const cancelAction = {
