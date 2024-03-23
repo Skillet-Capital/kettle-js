@@ -1811,7 +1811,7 @@ export class Kettle {
           }
         ]
 
-        if (BigNumber.from(makerBalance).lt(amount)) return [
+        if (BigNumber.from(makerAllowance).lt(amount)) return [
           offer.hash,
           {
             reason: "Insufficient maker allowance",
