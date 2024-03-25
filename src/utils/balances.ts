@@ -7,6 +7,7 @@ import {
 } from "../typechain-types";
 import { Collateral } from "../types";
 import { isErc721Item } from "./item";
+import { equalAddresses } from "./equalAddresses";
 
 export const collateralBalance = async (
   owner: string,
@@ -17,7 +18,7 @@ export const collateralBalance = async (
     const contract = TestERC721__factory.connect(collateral.collection, provider);
     try {
       const _owner = await contract.ownerOf(collateral.identifier);
-      return _owner === owner;
+      return equalAddresses(_owner, owner);
     } catch {
       return false;
     }
