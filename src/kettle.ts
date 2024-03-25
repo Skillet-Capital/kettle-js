@@ -501,6 +501,34 @@ export class Kettle {
     return [...approvalActions, takeOfferAction];
   }
 
+  public async editBorrowOffer(
+    salt: string,
+    input: CreateBorrowOfferInput,
+    accountAddress?: string
+  ): Promise<(CancelOrderAction | ApprovalAction | CreateOrderAction)[]> {
+    const cancelSteps = await this.cancelOffer(salt, accountAddress);
+    const createSteps = await this.createBorrowOffer(input, accountAddress);
+
+    return [
+      ...cancelSteps,
+      ...createSteps
+    ];
+  }
+
+  public async editAskOffer(
+    salt: string,
+    input: CreateMarketOfferInput,
+    accountAddress?: string
+  ): Promise<(CancelOrderAction | ApprovalAction | CreateOrderAction)[]> {
+    const cancelSteps = await this.cancelOffer(salt, accountAddress);
+    const createSteps = await this.createAskOffer(input, accountAddress);
+
+    return [
+      ...cancelSteps,
+      ...createSteps
+    ];
+  }
+
   public async refinance(
     lienId: bigint | number,
     lien: LienWithLender,
