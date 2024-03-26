@@ -4,7 +4,7 @@
     "rootDir": ".",
     "sourceMap": true,
     "outDir": "build",
-    "types": ["mocha"]
+    "types": ["chai", "mocha"]
   },
   "include": ["src/**/*.ts"],
   "rootDirs": ["./src", "./scripts", "./test"]
