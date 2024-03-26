@@ -16,7 +16,7 @@
     "lint": "gts lint",
     "compile": "tsc",
     "fix": "gts fix",
-    "prepare": "yarn run build",
+    "prepare": "npm run build",
     "pretest": "npm run compile",
     "posttest": "npm run lint"
   },
