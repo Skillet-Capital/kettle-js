@@ -3,7 +3,8 @@
   "compilerOptions": {
     "rootDir": ".",
     "sourceMap": true,
-    "outDir": "build"
+    "outDir": "build",
+    "skipLibCheck": true,
   },
   "include": ["src/**/*.ts"],
   "rootDirs": ["./src", "./scripts", "./test"]
