@@ -3,7 +3,8 @@
   "compilerOptions": {
     "rootDir": ".",
     "sourceMap": true,
-    "outDir": "build"
+    "outDir": "build",
+    "types": ["mocha"]
   },
   "include": ["src/**/*.ts"],
   "rootDirs": ["./src", "./scripts", "./test"]
