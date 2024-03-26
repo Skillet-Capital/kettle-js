@@ -31,7 +31,7 @@
     "cross-env": "^7.0.3",
     "gts": "^5.2.0",
     "hardhat": "^2.19.2",
-    "kettle_v3": "git+https://github.com/Skillet-Capital/kettle-contract.git",
+    "kettle_v3": "git+https://github.com/Skillet-Capital/kettle-contract.git#testing-contract",
     "sinon-chai": "^3.7.0",
     "ts-node": "^10.9.2",
     "typechain": "^8.3.2",
