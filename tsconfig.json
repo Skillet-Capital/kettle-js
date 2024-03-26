@@ -4,8 +4,9 @@
     "rootDir": ".",
     "sourceMap": true,
     "outDir": "build",
-    "types": ["chai", "mocha"]
+    "types": ["node", "jest" ]
   },
   "include": ["src/**/*.ts"],
+  "exclude": ["node_modules/@types/mocha"],
   "rootDirs": ["./src", "./scripts", "./test"]
 }
