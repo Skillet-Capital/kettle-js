@@ -17,6 +17,7 @@
     "compile": "tsc",
     "fix": "gts fix",
     "prepare": "npm run build",
+    "postinstall": "rm -rf node_modules/@types/mocha",
     "pretest": "npm run compile",
     "posttest": "npm run lint"
   },
@@ -31,7 +32,7 @@
     "cross-env": "^7.0.3",
     "gts": "^5.2.0",
     "hardhat": "^2.19.2",
-    "kettle_v3": "git+https://github.com/Skillet-Capital/kettle-contract.git#testing-contract",
+    "kettle_v3": "git+https://github.com/Skillet-Capital/kettle-contract.git",
     "sinon-chai": "^3.7.0",
     "ts-node": "^10.9.2",
     "typechain": "^8.3.2",
