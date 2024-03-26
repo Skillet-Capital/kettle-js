@@ -4,9 +4,8 @@
     "rootDir": ".",
     "sourceMap": true,
     "outDir": "build",
-    "types": ["node", "jest" ]
+    "skipLibCheck": true,
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["node_modules/@types/mocha"],
   "rootDirs": ["./src", "./scripts", "./test"]
 }
