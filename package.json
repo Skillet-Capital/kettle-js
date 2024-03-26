@@ -10,7 +10,7 @@
   "license": "Apache-2.0",
   "keywords": [],
   "scripts": {
-    "build": "npx hardhat compile && tsc -p tsconfig.json",
+    "build": "npm install && npx hardhat compile && tsc -p tsconfig.json",
     "clean": "tsc --build --clean",
     "test": "npx hardhat test",
     "lint": "gts lint",
