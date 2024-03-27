@@ -120,9 +120,12 @@ export class Kettle {
 
   private signer?: Signer;
 
+  private rpcUrl?: string;
+
   public constructor(
     providerOrSigner: JsonRpcProvider | Signer | JsonRpcSigner,
     contractAddress: string,
+    rpcUrl?: string
   ) {
     const provider = 
       "provider" in providerOrSigner
@@ -639,14 +642,6 @@ export class Kettle {
     return [...approvalActions, takeOfferAction];
   }
 
-  /**
-   * When the buyer wants to buy asset from seller
-   * Ask Offer is made from the seller
-   * Buyer is the taker
-   * @param offer 
-   * @param signature 
-   * @returns 
-   */
   public async takeAskOffer(
     offer: MarketOffer, 
     signature: string,
@@ -760,14 +755,6 @@ export class Kettle {
     return [...approvalActions, takeOfferAction];
   }
 
-  /**
-   * The Seller wants to sell to a buyer
-   * BidOffer is made from the buyer
-   * Seller is the taker
-   * @param offer 
-   * @param signature 
-   * @returns 
-   */
   public async takeBidOffer(
     offer: MarketOffer, 
     signature: string,
@@ -1125,7 +1112,7 @@ export class Kettle {
 
   public async validateLoanOffers(offers: LoanOfferWithHash[], lienCollateralMap?: LienCollateralMap) {
     const multicall = new Multicall({
-      nodeUrl: "https://sepolia.blast.io",
+      nodeUrl: this.rpcUrl ?? "https://rpc.blast.io",
       tryAggregate: true
     });
 
