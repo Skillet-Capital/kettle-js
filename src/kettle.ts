@@ -1114,6 +1114,7 @@ export class Kettle {
 
   public async validateLoanOffers(offers: LoanOfferWithHash[], lienCollateralMap?: LienCollateralMap) {
     const multicall = new Multicall({
+      multicallCustomContractAddress: "0xcA11bde05977b3631167028862bE2a173976CA11",
       nodeUrl: this.rpcUrl ?? "https://rpc.blast.io",
       tryAggregate: true
     });
@@ -1351,6 +1352,7 @@ export class Kettle {
 
   public async validateBorrowOffers(offers: BorrowOfferWithHash[]) {
     const multicall = new Multicall({
+      multicallCustomContractAddress: "0xcA11bde05977b3631167028862bE2a173976CA11",
       nodeUrl: this.rpcUrl ?? "https://rpc.blast.io",
       tryAggregate: true
     });
@@ -1524,6 +1526,7 @@ export class Kettle {
 
   public async validateAskOffers(offers: MarketOfferWithHash[], lienCollateralMap?: LienCollateralMap) {
     const multicall = new Multicall({
+      multicallCustomContractAddress: "0xcA11bde05977b3631167028862bE2a173976CA11",
       nodeUrl: this.rpcUrl ?? "https://rpc.blast.io",
       tryAggregate: true
     });
@@ -1762,6 +1765,7 @@ export class Kettle {
 
   public async validateBidOffers(offers: MarketOfferWithHash[]) {
     const multicall = new Multicall({
+      multicallCustomContractAddress: "0xcA11bde05977b3631167028862bE2a173976CA11",
       nodeUrl: this.rpcUrl ?? "https://rpc.blast.io",
       tryAggregate: true
     });
