@@ -150,6 +150,8 @@ export class Kettle {
       contractAddress, 
       this.provider
     );
+
+    this.rpcUrl = rpcUrl;
   }
 
   public connect(signer: Signer) {
@@ -1349,7 +1351,7 @@ export class Kettle {
 
   public async validateBorrowOffers(offers: BorrowOfferWithHash[]) {
     const multicall = new Multicall({
-      nodeUrl: "https://sepolia.blast.io",
+      nodeUrl: this.rpcUrl ?? "https://rpc.blast.io",
       tryAggregate: true
     });
 
@@ -1522,7 +1524,7 @@ export class Kettle {
 
   public async validateAskOffers(offers: MarketOfferWithHash[], lienCollateralMap?: LienCollateralMap) {
     const multicall = new Multicall({
-      nodeUrl: "https://sepolia.blast.io",
+      nodeUrl: this.rpcUrl ?? "https://rpc.blast.io",
       tryAggregate: true
     });
 
@@ -1760,7 +1762,7 @@ export class Kettle {
 
   public async validateBidOffers(offers: MarketOfferWithHash[]) {
     const multicall = new Multicall({
-      nodeUrl: "https://sepolia.blast.io",
+      nodeUrl: this.rpcUrl ?? "https://rpc.blast.io",
       tryAggregate: true
     });
 
