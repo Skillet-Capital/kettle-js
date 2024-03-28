@@ -7,6 +7,7 @@ import {
   Provider,
   JsonRpcSigner,
   Signer,
+  formatUnits,
 } from "ethers";
 
 import {
@@ -2170,5 +2171,32 @@ export class Kettle {
     }
 
     return (this.provider as JsonRpcProvider).getSigner(accountAddress);
+  }
+
+  async refinanceData(
+    lien: LienWithLender,
+    offer: LoanOffer
+  ): Promise<{
+    owed: string,
+    payed: string,
+    refinanceFees: string
+  }> {
+    const { debt } = await this.contract.currentDebtAmount(lien);
+
+    if (debt > BigInt(offer.terms.maxAmount)) {
+      const owed = debt - BigInt(offer.terms.maxAmount);
+      return {
+        owed: formatUnits(owed, 18),
+        payed: "0",
+        refinanceFees: "0"
+      }
+    } else {
+      const payed = BigInt(offer.terms.maxAmount) - debt;
+      return {
+        owed: "0",
+        payed: formatUnits(payed, 18),
+        refinanceFees: "0"
+      }
+    }
   }
 }
