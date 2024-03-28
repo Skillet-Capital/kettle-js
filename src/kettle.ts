@@ -351,27 +351,6 @@ export class Kettle {
       }
     }
 
-    const allowance = await currencyAllowance(
-      offerer,
-      offer.terms.currency,
-      operator,
-      this.provider
-    );
-
-    const marketFee = this.calculateMarketFee(
-      BigInt(offer.terms.amount),
-      BigInt(offer.fee.rate)
-    );
-
-    if (allowance < marketFee) {
-      const allowanceAction = await getAllowanceAction(
-          offer.terms.currency,
-          operator,
-          signer!
-        )
-      approvalActions.push(allowanceAction);
-    }
-
     const createOfferAction = {
       type: "create",
       offerType: OfferType.MARKET_OFFER,
