@@ -900,7 +900,7 @@ export class Kettle {
     const claimAction = {
       type: "claim",
       claim: async () => {
-        return await this.contract.connect(signer).repay(lienId, lien)
+        return await this.contract.connect(signer).claim(lienId, lien)
       }
     } as const;
 
