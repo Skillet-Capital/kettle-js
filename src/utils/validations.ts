@@ -11,7 +11,7 @@ export function isCurrentLien(lien: LienWithLender | Lien): boolean {
     BigInt(lien.startTime) 
     + BigInt(lien.duration) 
     + BigInt(lien.gracePeriod)
-  ) > getEpoch())
+  ) < getEpoch())
 }
 
 export function lienMatchesOfferCollateral(
