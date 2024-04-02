@@ -108,8 +108,9 @@ import {
 
 import {
   offerIsExpired,
-  isCurrentLien,
-  lienMatchesOfferCollateral
+  lienIsCurrent,
+  lienMatchesOfferCollateral,
+  lienIsDefaulted
 } from "./utils/validations";
 
 export class Kettle {
@@ -173,7 +174,7 @@ export class Kettle {
     let _amount = offer.terms.maxAmount;
     if (
       input.lien 
-      && isCurrentLien(input.lien) 
+      && lienIsCurrent(input.lien) 
       && lienMatchesOfferCollateral(input.lien , offer.collateral.collection, offer.collateral.identifier, offer.terms.currency)
       && equalAddresses(input.lien.lender, offer.lender)
     ) {
@@ -891,7 +892,7 @@ export class Kettle {
     accountAddress?: string
   ): Promise<ClaimAction[]> 
   {
-    if (!isCurrentLien(lien)) {
+    if (lienIsCurrent(lien)) {
       throw new Error("Lien is not defaulted");
     }
 
@@ -1152,7 +1153,7 @@ export class Kettle {
         let collateralId = `${collection}/${identifier}`.toLowerCase();
         if (lienCollateralMap?.[collateralId]) {
           let _lien = lienCollateralMap?.[collateralId];
-          if (isCurrentLien(_lien) && lienMatchesOfferCollateral(_lien, collection, identifier, currency)) {
+          if (lienIsCurrent(_lien) && lienMatchesOfferCollateral(_lien, collection, identifier, currency)) {
             lien = _lien;
 
             currentDebt = results.results["kettleCurrentDebtAmount"].callsReturnContext.find(
@@ -1275,7 +1276,7 @@ export class Kettle {
     let _amount = offer.terms.maxAmount;
     if (
       lien 
-      && isCurrentLien(lien) 
+      && lienIsCurrent(lien) 
       && lienMatchesOfferCollateral(lien, offer.collateral.collection, offer.collateral.identifier, offer.terms.currency)
       && equalAddresses(lien.lender, offer.lender)
     ) {
@@ -1564,7 +1565,7 @@ export class Kettle {
         let collateralId = `${collection}/${identifier}`.toLowerCase();
         if (lienCollateralMap?.[collateralId]) {
           let _lien = lienCollateralMap?.[collateralId];
-          if (isCurrentLien(_lien) && lienMatchesOfferCollateral(_lien, collection, identifier, currency)) {
+          if (lienIsCurrent(_lien) && lienMatchesOfferCollateral(_lien, collection, identifier, currency)) {
             lien = _lien;
 
             currentDebt = results.results["kettleCurrentDebtAmount"].callsReturnContext.find(
@@ -1894,7 +1895,7 @@ export class Kettle {
   }
 
   public async validateRepay(lien: Lien) {
-    if (BigInt(lien.startTime) + BigInt(lien.duration) + BigInt(lien.gracePeriod) < getEpoch()) {
+    if (lienIsDefaulted(lien)) {
       throw new Error("Lien is defaulted");
     }
 
