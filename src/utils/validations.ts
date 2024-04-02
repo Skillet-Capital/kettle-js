@@ -6,12 +6,16 @@ export function offerIsExpired(expiration: string | number | bigint): boolean {
   return BigInt(expiration) < getEpoch()
 }
 
-export function isCurrentLien(lien: LienWithLender | Lien): boolean {
-  return ((
-    BigInt(lien.startTime) 
-    + BigInt(lien.duration) 
-    + BigInt(lien.gracePeriod)
-  ) < getEpoch())
+function getLienEndTime(lien: LienWithLender | Lien): bigint {
+  return BigInt(lien.startTime) + BigInt(lien.duration) + BigInt(lien.gracePeriod)
+}
+
+export function lienIsCurrent(lien: LienWithLender | Lien): boolean {
+  return getLienEndTime(lien) > getEpoch();
+}
+
+export function lienIsDefaulted(lien: LienWithLender | Lien): boolean {
+  return getLienEndTime(lien) < getEpoch();
 }
 
 export function lienMatchesOfferCollateral(
