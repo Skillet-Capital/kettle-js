@@ -277,4 +277,12 @@ export type CancelOrderAction = {
   cancelOrder: () => Promise<ethers.TransactionResponse>;
 }
 
+export type CancelOrdersAction = {
+  type: "cancel";
+  cancelOrders: () => Promise<ethers.TransactionResponse>;
+}
 
+export type IncrementNonceAction = {
+  type: "incrementNonce";
+  incrementNonce: () => Promise<ethers.TransactionResponse>;
+}
