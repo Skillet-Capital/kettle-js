@@ -72,6 +72,8 @@ import type {
   RepayAction,
   ClaimAction,
   CancelOrderAction,
+  CancelOrdersAction,
+  IncrementNonceAction,
   LoanOfferWithHash,
   BorrowOfferWithHash,
   MarketOfferWithHash,
@@ -923,6 +925,39 @@ export class Kettle {
     } as const;
 
     return [cancelAction];
+  }
+
+  public async cancelOffers(
+    salts: string[],
+    accountAddress?: string
+  ): Promise<CancelOrdersAction[]> 
+  {
+    const signer = await this._getSigner(accountAddress);
+
+    const cancelAction = {
+      type: "cancel",
+      cancelOrders: () => {
+        return this.contract.connect(signer).cancelOffers(salts);
+      }
+    } as const;
+
+    return [cancelAction];
+  }
+
+  public async incrementNonce(
+    accountAddress?: string
+  ): Promise<IncrementNonceAction[]> 
+  {
+    const signer = await this._getSigner(accountAddress);
+
+    const incrementAction = {
+      type: "incrementNonce",
+      incrementNonce: () => {
+        return this.contract.connect(signer).incrementNonce();
+      }
+    } as const;
+
+    return [incrementAction];
   }
 
   public async currentDebtAmount(lien: Lien) {
