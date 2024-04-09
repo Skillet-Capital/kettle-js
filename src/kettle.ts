@@ -1200,14 +1200,6 @@ export class Kettle {
               valid: false
             }
           ]
-
-          if (equalAddresses(collateralOwner, ADDRESS_ZERO)) return [
-            offer.hash,
-            {
-              reason: "Collateral does not exist",
-              valid: false
-            }
-          ]
         }
 
         // check for valid balance (against lien if applicable)
@@ -1856,14 +1848,6 @@ export class Kettle {
             offer.hash,
             {
               reason: "Bidder cannot own collateral",
-              valid: false
-            }
-          ]
-
-          if (equalAddresses(collateralOwner, ADDRESS_ZERO)) return [
-            offer.hash,
-            {
-              reason: "Collateral does not exist",
               valid: false
             }
           ]
