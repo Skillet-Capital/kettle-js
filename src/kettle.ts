@@ -1136,6 +1136,15 @@ export class Kettle {
     });
 
     const callContext: ContractCallContext[] = [
+      ...buildMakerCollateralBalancesAndAllowancesCallContext(
+        offers.map((offer) => ({ 
+          maker: offer.lender, 
+          collection: offer.collateral.collection,
+          itemType: offer.collateral.itemType,
+          identifier: offer.collateral.identifier
+        })),
+        this.contractAddress
+      ),
       ...buildMakerBalancesAndAllowancesCallContext(
           offers.map((offer) => ({ maker: offer.lender, currency: offer.terms.currency})),
           this.contractAddress
@@ -1157,7 +1166,11 @@ export class Kettle {
       (offer) => {
         const { lender, terms, collateral } = offer;
         const { currency, maxAmount, totalAmount, minAmount } = terms;
-        const { collection, identifier } = collateral;
+        const { collection, identifier, itemType } = collateral;
+
+        const collateralOwner = results.results[collection].callsReturnContext.find(
+          (callReturn) => callReturn.reference === identifier && callReturn.methodName === "ownerOf"
+        )?.returnValues[0];
 
         const lenderBalance = results.results[currency].callsReturnContext.find(
           (callReturn) => callReturn.reference === lender && callReturn.methodName === "balanceOf"
@@ -1213,6 +1226,17 @@ export class Kettle {
             valid: false
           }
         ]
+
+        // check for valid collateral ownership
+        if (itemType === ItemType.ERC721) {
+          if (equalAddresses(collateralOwner, lender)) return [
+            offer.hash,
+            {
+              reason: "Lender cannot own collateral",
+              valid: false
+            }
+          ]
+        }
 
         // check for valid balance (against lien if applicable)
         if (BigNumber.from(lenderBalance).lt(maxAmount)) {
@@ -1787,6 +1811,15 @@ export class Kettle {
     });
 
     const callContext: ContractCallContext[] = [
+      ...buildMakerCollateralBalancesAndAllowancesCallContext(
+        offers.map((offer) => ({ 
+          maker: offer.maker, 
+          collection: offer.collateral.collection,
+          itemType: offer.collateral.itemType,
+          identifier: offer.collateral.identifier
+        })),
+        this.contractAddress
+      ),
       ...buildMakerBalancesAndAllowancesCallContext(
           offers.map((offer) => ({ maker: offer.maker, currency: offer.terms.currency})),
           this.contractAddress
@@ -1803,6 +1836,11 @@ export class Kettle {
       (offer) => {
         const { maker, terms } = offer;
         const { currency, amount } = terms;
+        const { collection, identifier, itemType } = offer.collateral;
+
+        const collateralOwner = results.results[collection].callsReturnContext.find(
+          (callReturn) => callReturn.reference === identifier && callReturn.methodName === "ownerOf"
+        )?.returnValues[0];
 
         const makerBalance = results.results[currency].callsReturnContext.find(
           (callReturn) => equalAddresses(callReturn.reference, maker) && callReturn.methodName === "balanceOf"
@@ -1839,6 +1877,17 @@ export class Kettle {
             valid: false
           }
         ]
+
+        // check for valid collateral ownership
+        if (itemType === ItemType.ERC721) {
+          if (equalAddresses(collateralOwner, maker)) return [
+            offer.hash,
+            {
+              reason: "Bidder cannot own collateral",
+              valid: false
+            }
+          ]
+        }
 
         if (BigNumber.from(makerBalance).lt(amount)) return [
           offer.hash,
