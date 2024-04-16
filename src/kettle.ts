@@ -1227,15 +1227,6 @@ export class Kettle {
           }
         ];
 
-        // check if loan offer currency matches terms currency
-        if (lien && !equalAddresses(lien.currency, currency)) return [
-          offer.hash,
-          {
-            reason: "Currency mismatch",
-            valid: false
-          }
-        ];
-
         // check for valid collateral ownership
         if (itemType === ItemType.ERC721) {
           if (equalAddresses(collateralOwner, lender)) return [
