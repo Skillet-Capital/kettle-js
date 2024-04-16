@@ -1216,7 +1216,7 @@ export class Kettle {
             reason: "Invalid return data",
             valid: false
           }
-        ]
+        ];
 
         // check if offer is expired
         if (offerIsExpired(offer.expiration)) return [
@@ -1225,7 +1225,7 @@ export class Kettle {
             reason: "Offer has expired",
             valid: false
           }
-        ]
+        ];
 
         // check for valid collateral ownership
         if (itemType === ItemType.ERC721) {
@@ -2004,6 +2004,18 @@ export class Kettle {
   ) {
     if (!equalAddresses(taker, lien.borrower)) {
       throw new Error("Invalid borrower");
+    }
+
+    if (!equalAddresses(lien.currency, offer.terms.currency)) {
+      throw new Error("Currencies do not match")
+    }
+
+    if (!equalAddresses(lien.collection, offer.collateral.collection)) {
+      throw new Error("Collections do not match")
+    }
+
+    if (lien.tokenId != offer.collateral.identifier) {
+      throw new Error("TokenIds do not match")
     }
 
     if (BigInt(lien.startTime) + BigInt(lien.duration) + BigInt(lien.gracePeriod) < getEpoch()) {
