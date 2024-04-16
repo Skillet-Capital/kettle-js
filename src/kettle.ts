@@ -1216,7 +1216,7 @@ export class Kettle {
             reason: "Invalid return data",
             valid: false
           }
-        ]
+        ];
 
         // check if offer is expired
         if (offerIsExpired(offer.expiration)) return [
@@ -1225,7 +1225,16 @@ export class Kettle {
             reason: "Offer has expired",
             valid: false
           }
-        ]
+        ];
+
+        // check if loan offer currency matches terms currency
+        if (lien && !equalAddresses(lien.currency, currency)) return [
+          offer.hash,
+          {
+            reason: "Currency mismatch",
+            valid: false
+          }
+        ];
 
         // check for valid collateral ownership
         if (itemType === ItemType.ERC721) {
