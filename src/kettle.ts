@@ -326,7 +326,13 @@ export class Kettle {
         }
 
         const { debt } = await this.contract.currentDebtAmount(input.lien);
-        if (debt > BigInt(offer.terms.amount)) {
+
+        const netAmount = this.calculateNetMarketAmount(
+          BigInt(offer.terms.amount),
+          BigInt(offer.fee.rate)
+        );
+
+        if (debt > netAmount) {
           throw new Error("Ask does not cover debt");
         }
       } else {
