@@ -1755,11 +1755,19 @@ export class Kettle {
       )
     ]);
 
-    // if seller does not own the collatera, the lien must own the collateral
+    // if seller does not own the collateral, the lien must own the collateral
     if (!sellerBalance) {
       if (lien) {
+        if (!equalAddresses(lien.currency, offer.terms.currency)) {
+          throw new Error("Lien currency does not match offer currency");
+        }
+
         if (!equalAddresses(lien.collection, offer.collateral.collection)) {
           throw new Error("Lien collection does not match offer collection");
+        }
+
+        if (lien.itemType != offer.collateral.itemType) {
+          throw new Error("Lien itemType does not match offer itemType");
         }
 
         if (lien.tokenId != offer.collateral.identifier) {
@@ -1770,7 +1778,7 @@ export class Kettle {
           throw new Error("Seller is not the borrower");
         }
 
-        if (BigInt(lien.startTime) + BigInt(lien.duration) + BigInt(lien.gracePeriod) < getEpoch()) {
+        if (lienIsDefaulted(lien)) {
           throw new Error("Lien is defaulted");
         }
 
@@ -2049,7 +2057,19 @@ export class Kettle {
       throw new Error("Invalid borrower");
     }
 
-    if (BigInt(lien.startTime) + BigInt(lien.duration) + BigInt(lien.gracePeriod) < getEpoch()) {
+    if (!equalAddresses(lien.currency, offer.terms.currency)) {
+      throw new Error("Currencies do not match")
+    }
+
+    if (!equalAddresses(lien.collection, offer.collateral.collection)) {
+      throw new Error("Collections do not match")
+    }
+
+    if (lien.tokenId != offer.collateral.identifier) {
+      throw new Error("TokenIds do not match")
+    }
+
+    if (lienIsDefaulted(lien)) {
       throw new Error("Lien is defaulted");
     }
 
