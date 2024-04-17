@@ -2226,13 +2226,6 @@ export class Kettle {
     );
   }
 
-  public calculateMarketFee(
-    amount: bigint,
-    rate: bigint
-  ) {
-    return (amount * rate) / BigInt(BASIS_POINTS_DIVISOR);
-  }
-
   private async _getSigner(
     accountAddress?: string,
   ): Promise<Signer | JsonRpcSigner> {
@@ -2247,6 +2240,20 @@ export class Kettle {
     }
 
     return (this.provider as JsonRpcProvider).getSigner(accountAddress);
+  }
+
+  public calculateMarketFee(
+    amount: bigint,
+    rate: bigint
+  ) {
+    return (amount * rate) / BigInt(BASIS_POINTS_DIVISOR);
+  }
+
+  public calculateNetMarketAmount(
+    amount: bigint,
+    rate: bigint
+  ) {
+    return amount - this.calculateMarketFee(amount, rate);
   }
 
   async refinanceData(
