@@ -2282,4 +2282,28 @@ export class Kettle {
       }
     }
   }
+
+  async sellInLienData(
+    lien: LienWithLender,
+    offer: MarketOffer
+  ): Promise<{
+    owed: string,
+    payed: string
+  }> {
+    const { debt } = await this.contract.currentDebtAmount(lien);
+
+    if (debt > BigInt(offer.terms.amount)) {
+      const owed = debt - BigInt(offer.terms.amount);
+      return {
+        owed: formatUnits(owed, 18),
+        payed: "0"
+      }
+    } else {
+      const payed = BigInt(offer.terms.amount) - debt;
+      return {
+        owed: "0",
+        payed: formatUnits(payed, 18)
+      }
+    }
+  }
 }
