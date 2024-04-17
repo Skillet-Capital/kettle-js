@@ -812,6 +812,11 @@ export class Kettle {
     const { debt } = await this.contract.currentDebtAmount(lien);
 
     const approvalActions = [];
+    const netAmount = this.calculateNetMarketAmount(
+      BigInt(offer.terms.amount),
+      BigInt(offer.fee.rate)
+    );
+    
     if (debt > BigInt(offer.terms.amount)) {
       const diff = debt - BigInt(offer.terms.amount);
 
@@ -2312,14 +2317,19 @@ export class Kettle {
   }> {
     const { debt } = await this.contract.currentDebtAmount(lien);
 
-    if (debt > BigInt(offer.terms.amount)) {
-      const owed = debt - BigInt(offer.terms.amount);
+    const netAmount = this.calculateNetMarketAmount(
+      BigInt(offer.terms.amount),
+      BigInt(offer.fee.rate)
+    );
+
+    if (debt > netAmount) {
+      const owed = debt - netAmount;
       return {
         owed: formatUnits(owed, 18),
         payed: "0"
       }
     } else {
-      const payed = BigInt(offer.terms.amount) - debt;
+      const payed = netAmount - debt;
       return {
         owed: "0",
         payed: formatUnits(payed, 18)
