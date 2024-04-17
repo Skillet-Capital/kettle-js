@@ -812,8 +812,13 @@ export class Kettle {
     const { debt } = await this.contract.currentDebtAmount(lien);
 
     const approvalActions = [];
-    if (debt > BigInt(offer.terms.amount)) {
-      const diff = debt - BigInt(offer.terms.amount);
+    const netAmount = this.calculateNetMarketAmount(
+      BigInt(offer.terms.amount),
+      BigInt(offer.fee.rate)
+    );
+
+    if (debt > netAmount) {
+      const diff = debt - netAmount;
 
       const allowance = await currencyAllowance(
         taker,
@@ -1680,7 +1685,11 @@ export class Kettle {
             && equalAddresses(maker, lien.borrower)
           ) {
             collateralInLien = true;
-            if (BigNumber.from(currentDebt).gt(amount)) return [
+            const netAmount = this.calculateNetMarketAmount(
+              BigInt(amount),
+              BigInt(offer.fee.rate)
+            );
+            if (BigNumber.from(currentDebt).gt(netAmount)) return [
               offer.hash,
               {
                 reason: "Ask does not cover debt",
@@ -1783,7 +1792,12 @@ export class Kettle {
         }
 
         const { debt } = await this.contract.currentDebtAmount(lien);
-        if (debt > BigInt(offer.terms.amount)) {
+        const netAmount = this.calculateNetMarketAmount(
+          BigInt(offer.terms.amount),
+          BigInt(offer.fee.rate)
+        );
+
+        if (debt > netAmount) {
           throw new Error("Ask does not cover debt");
         }
       } else {
@@ -2312,14 +2326,19 @@ export class Kettle {
   }> {
     const { debt } = await this.contract.currentDebtAmount(lien);
 
-    if (debt > BigInt(offer.terms.amount)) {
-      const owed = debt - BigInt(offer.terms.amount);
+    const netAmount = this.calculateNetMarketAmount(
+      BigInt(offer.terms.amount),
+      BigInt(offer.fee.rate)
+    );
+
+    if (debt > netAmount) {
+      const owed = debt - netAmount;
       return {
         owed: formatUnits(owed, 18),
         payed: "0"
       }
     } else {
-      const payed = BigInt(offer.terms.amount) - debt;
+      const payed = netAmount - debt;
       return {
         owed: "0",
         payed: formatUnits(payed, 18)
