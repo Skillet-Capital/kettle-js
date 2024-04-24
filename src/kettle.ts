@@ -800,6 +800,68 @@ export class Kettle {
     return [...approvalActions, takeOfferAction];
   }
 
+  public async takeCollectionBidOffer(
+    tokenId: string,
+    offer: MarketOffer,
+    proof: string[], 
+    signature: string,
+    accountAddress?: string
+  ): Promise<(ApprovalAction | TakeOrderAction)[]> 
+  {
+    const signer = await this._getSigner(accountAddress);
+    const taker = accountAddress ?? (await signer.getAddress());
+    const operator = await this.contract.getAddress();
+
+    await this.validateBidOffer(offer);
+
+    const balance = await collateralBalance(
+      taker,
+      {
+        collection: offer.collateral.collection,
+        criteria: Criteria.PROOF,
+        itemType: ItemType.ERC721,
+        identifier: tokenId,
+        size: offer.collateral.size
+      },
+      this.provider
+    );
+
+    if (!balance) {
+      throw new Error("Seller does not own collateral")
+    }
+
+    const approvals = await collateralApprovedForAll(
+      taker,
+      offer.collateral,
+      operator,
+      this.provider
+    );
+
+    const approvalActions = [];
+    if (!approvals) {
+      const approvalAction = await getApprovalAction(
+          offer.collateral.collection,
+          operator,
+          signer!
+        )
+      approvalActions.push(approvalAction);
+    }
+
+    const takeOfferAction = {
+      type: "take",
+      takeOrder: async () => {
+        return await this.contract.connect(signer).marketOrder(
+          tokenId,
+          offer,
+          signature,
+          proof
+        )
+      }
+    } as const;
+
+    return [...approvalActions, takeOfferAction];
+  }
+
   public async takeBidOfferInLien(
     lienId: bigint | number,
     lien: Lien,
@@ -1092,6 +1154,7 @@ export class Kettle {
       collection,
       itemType,
       identifier,
+      criteria,
       currency,
       amount,
       withLoan,
@@ -1105,7 +1168,7 @@ export class Kettle {
 
     const collateral: Collateral = {
       collection,
-      criteria: Criteria.SIMPLE,
+      criteria: criteria ?? Criteria.SIMPLE,
       itemType,
       identifier,
       size: 1,
@@ -1840,12 +1903,14 @@ export class Kettle {
 
     const callContext: ContractCallContext[] = [
       ...buildMakerCollateralBalancesAndAllowancesCallContext(
-        offers.map((offer) => ({ 
-          maker: offer.maker, 
-          collection: offer.collateral.collection,
-          itemType: offer.collateral.itemType,
-          identifier: offer.collateral.identifier
-        })),
+        offers
+          .filter((offer) => offer.collateral.criteria === Criteria.SIMPLE)
+          .map((offer) => ({ 
+            maker: offer.maker, 
+            collection: offer.collateral.collection,
+            itemType: offer.collateral.itemType,
+            identifier: offer.collateral.identifier
+          })),
         this.contractAddress
       ),
       ...buildMakerBalancesAndAllowancesCallContext(
@@ -1864,7 +1929,7 @@ export class Kettle {
       (offer) => {
         const { maker, terms } = offer;
         const { currency, amount } = terms;
-        const { collection, identifier, itemType } = offer.collateral;
+        const { collection, identifier, itemType, criteria } = offer.collateral;
 
         const collateralOwner = results.results[collection].callsReturnContext.find(
           (callReturn) => callReturn.reference === identifier && callReturn.methodName === "ownerOf"
@@ -1907,7 +1972,7 @@ export class Kettle {
         ]
 
         // check for valid collateral ownership
-        if (itemType === ItemType.ERC721) {
+        if (itemType === ItemType.ERC721 && criteria === Criteria.SIMPLE) {
           if (equalAddresses(collateralOwner, maker)) return [
             offer.hash,
             {

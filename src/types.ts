@@ -205,6 +205,7 @@ export type CreateMarketOfferInput = {
   collection: string;
   itemType: ItemType;
   identifier: string | number | bigint;
+  criteria?: Criteria;
   currency: string;
   amount: string | number | bigint;
   withLoan?: boolean;
