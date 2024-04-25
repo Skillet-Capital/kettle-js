@@ -1931,7 +1931,7 @@ export class Kettle {
         const { currency, amount } = terms;
         const { collection, identifier, itemType, criteria } = offer.collateral;
 
-        const collateralOwner = results.results[collection].callsReturnContext.find(
+        const collateralOwner = results.results[collection]?.callsReturnContext?.find(
           (callReturn) => callReturn.reference === identifier && callReturn.methodName === "ownerOf"
         )?.returnValues[0];
 
