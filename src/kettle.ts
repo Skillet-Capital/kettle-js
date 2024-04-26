@@ -995,6 +995,14 @@ export class Kettle {
       cancelOrder: () => {
         return this.contract.connect(signer).cancelOffer(salt)
           .then((tx) => tx.wait())
+          .then((receipt) => {
+            if (receipt === null) {
+              // Handle the null receipt case
+              throw new Error("Transaction receipt was null. Transaction may have been dropped or node may be out of sync.");
+            }
+            console.log(`Transaction was succesfully mined: ${receipt.hash}`);
+            return receipt;
+          })
           .catch(() => {
             throw new Error("Failed to cancel offer")
           })
