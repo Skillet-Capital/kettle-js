@@ -993,7 +993,11 @@ export class Kettle {
     const cancelAction = {
       type: "cancel",
       cancelOrder: () => {
-        return this.contract.connect(signer).cancelOffer(salt);
+        return this.contract.connect(signer).cancelOffer(salt)
+          .then((tx) => tx.wait())
+          .catch(() => {
+            throw new Error("Failed to cancel offer")
+          })
       }
     } as const;
 
