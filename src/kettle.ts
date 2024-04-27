@@ -1021,8 +1021,20 @@ export class Kettle {
 
     const cancelAction = {
       type: "cancel",
-      cancelOrders: () => {
-        return this.contract.connect(signer).cancelOffers(salts);
+      cancelOrders: async () => {
+        try {
+          const transaction = await this.contract.connect(signer).cancelOffers(salts);
+          return this._confirmTransaction(transaction.hash, undefined, 30000);
+        } catch (error: unknown) {
+          // Use a type guard to check if this is an Error object with a 'code' property
+          if (error instanceof Error && 'code' in error) {
+              if (error.code === "ACTION_REJECTED") {
+                  throw new Error("Transaction rejected");
+              }
+          }
+          // If it's an Error object but doesn't have a 'code', or isn't an Error object at all:
+          throw new Error("An unexpected error occurred");
+        } 
       }
     } as const;
 

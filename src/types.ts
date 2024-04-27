@@ -280,7 +280,7 @@ export type CancelOrderAction = {
 
 export type CancelOrdersAction = {
   type: "cancel";
-  cancelOrders: () => Promise<ethers.TransactionResponse>;
+  cancelOrders: () => Promise<string | null>;
 }
 
 export type IncrementNonceAction = {
