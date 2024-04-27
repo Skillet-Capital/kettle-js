@@ -2380,7 +2380,7 @@ export class Kettle {
       await this.provider.waitForTransaction(hash, confirmations, timeout);
       return hash;
     } catch (error) {
-      throw new Error("Transaction failed, please try again");
+      throw new Error("Unable to confirm transaction, please check block explorer and try again");
     }
   }
 
