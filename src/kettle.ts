@@ -2359,6 +2359,19 @@ export class Kettle {
     return (this.provider as JsonRpcProvider).getSigner(accountAddress);
   }
 
+  private async _confirmTransaction(
+    hash: string,
+    confirmations?: number,
+    timeout?: number
+  ) {
+    try {
+      await this.provider.waitForTransaction(hash, confirmations, timeout);
+      return hash;
+    } catch (error) {
+      throw new Error("Transaction failed, please try again");
+    }
+  }
+
   public calculateMarketFee(
     amount: bigint,
     rate: bigint

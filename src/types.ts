@@ -275,7 +275,7 @@ export type ClaimAction = {
 
 export type CancelOrderAction = {
   type: "cancel";
-  cancelOrder: () => Promise<ethers.ContractTransactionReceipt | null>;
+  cancelOrder: () => Promise<string | null>;
 }
 
 export type CancelOrdersAction = {
