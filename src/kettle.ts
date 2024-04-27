@@ -992,20 +992,20 @@ export class Kettle {
 
     const cancelAction = {
       type: "cancel",
-      cancelOrder: () => {
-        return this.contract.connect(signer).cancelOffer(salt)
-          .then((tx) => tx.wait())
-          .then((receipt) => {
-            if (receipt === null) {
-              // Handle the null receipt case
-              throw new Error("Transaction receipt was null. Transaction may have been dropped or node may be out of sync.");
+      cancelOrder: async () => {
+          try {
+            const transaction = await this.contract.connect(signer).cancelOffer(salt);
+            return this._confirmTransaction(transaction.hash, undefined, 30000);
+          } catch (error: unknown) {
+            // Use a type guard to check if this is an Error object with a 'code' property
+            if (error instanceof Error && 'code' in error) {
+                if (error.code === "ACTION_REJECTED") {
+                    throw new Error("Transaction rejected");
+                }
             }
-            console.log(`Transaction was succesfully mined: ${receipt.hash}`);
-            return receipt;
-          })
-          .catch(() => {
-            throw new Error("Failed to cancel offer")
-          })
+            // If it's an Error object but doesn't have a 'code', or isn't an Error object at all:
+            throw new Error("An unexpected error occurred");
+        }
       }
     } as const;
 
@@ -1021,8 +1021,20 @@ export class Kettle {
 
     const cancelAction = {
       type: "cancel",
-      cancelOrders: () => {
-        return this.contract.connect(signer).cancelOffers(salts);
+      cancelOrders: async () => {
+        try {
+          const transaction = await this.contract.connect(signer).cancelOffers(salts);
+          return this._confirmTransaction(transaction.hash, undefined, 30000);
+        } catch (error: unknown) {
+          // Use a type guard to check if this is an Error object with a 'code' property
+          if (error instanceof Error && 'code' in error) {
+              if (error.code === "ACTION_REJECTED") {
+                  throw new Error("Transaction rejected");
+              }
+          }
+          // If it's an Error object but doesn't have a 'code', or isn't an Error object at all:
+          throw new Error("An unexpected error occurred");
+        } 
       }
     } as const;
 
@@ -2359,6 +2371,19 @@ export class Kettle {
     return (this.provider as JsonRpcProvider).getSigner(accountAddress);
   }
 
+  private async _confirmTransaction(
+    hash: string,
+    confirmations?: number,
+    timeout?: number
+  ) {
+    try {
+      await this.provider.waitForTransaction(hash, confirmations, timeout);
+      return hash;
+    } catch (error) {
+      throw new Error("Unable to confirm transaction, please check block explorer and try again");
+    }
+  }
+
   public calculateMarketFee(
     amount: bigint,
     rate: bigint
@@ -2429,3 +2454,26 @@ export class Kettle {
     }
   }
 }
+
+// const cancelAction = {
+//   type: "cancel",
+//   cancelOrder: async () => {
+//       try {
+//           const transaction = await this.contract.connect(signer).cancelOffer(salt);
+
+//           // Wait for transaction to be confirmed
+//           await this.provider.waitForTransaction(transaction.hash, 1, 15000);
+
+//           // If transaction confirms successfully, clear the timeout
+//           clearTimeout(confirmationTimeout);
+
+//           // Resolve the function successfully
+//           return true;
+//       } catch (error) {
+//           if (error.code === "ACTION_REJECTED") {
+//               throw new Error("Transaction was cancelled");
+//           }
+
+//           throw new Error("Transaction failed, please try again");
+//       }
+//   }

@@ -275,12 +275,12 @@ export type ClaimAction = {
 
 export type CancelOrderAction = {
   type: "cancel";
-  cancelOrder: () => Promise<ethers.ContractTransactionReceipt | null>;
+  cancelOrder: () => Promise<string | null>;
 }
 
 export type CancelOrdersAction = {
   type: "cancel";
-  cancelOrders: () => Promise<ethers.TransactionResponse>;
+  cancelOrders: () => Promise<string | null>;
 }
 
 export type IncrementNonceAction = {

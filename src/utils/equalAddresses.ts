@@ -1,3 +1,3 @@
 export function equalAddresses(a: string, b: string): boolean {
-  return a.toLowerCase() === b.toLowerCase()
+  return a?.toLowerCase() === b?.toLowerCase()
 }
