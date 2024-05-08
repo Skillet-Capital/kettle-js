@@ -497,7 +497,7 @@ export class Kettle {
 
   public async takeCollectionLoanOffer(
     offer: LoanOffer, 
-    proof: string[],
+    proof: [],
     signature: string,
     accountAddress?: string
   ): Promise<(ApprovalAction | TakeOrderAction)[]> 
@@ -630,6 +630,63 @@ export class Kettle {
           offer,
           signature,
           []
+        )
+      }
+    } as const;
+
+    return [...approvalActions, takeOfferAction];
+  }
+
+  public async refinanceCollectionOffer(
+    lienId: bigint | number,
+    lien: LienWithLender,
+    offer: LoanOffer,
+    proof: string[],
+    signature: string,
+    accountAddress?: string
+  ):  Promise<(ApprovalAction | TakeOrderAction)[]> 
+  {
+    const signer = await this._getSigner(accountAddress);
+    const taker = accountAddress ?? (await signer.getAddress());
+    const operator = await this.contract.getAddress();
+
+    // validate loan offer and refinancing
+    await this.validateLoanOffer(offer, lien);
+    await this.validateRefinance(taker, lien, offer);
+
+    const { debt } = await this.contract.currentDebtAmount(lien);
+
+    const approvalActions = [];
+    if (debt > BigInt(offer.terms.maxAmount)) {
+      const diff = debt - BigInt(offer.terms.maxAmount);
+
+      const allowance = await currencyAllowance(
+        taker,
+        offer.terms.currency,
+        operator,
+        this.provider
+      );
+  
+      if (allowance < BigInt(diff)) {
+        const allowanceAction = await getAllowanceAction(
+            offer.terms.currency,
+            operator,
+            signer!
+          )
+        approvalActions.push(allowanceAction);
+      }
+    }
+
+    const takeOfferAction = {
+      type: "take",
+      takeOrder: () => {
+        return this.contract.connect(signer).refinance(
+          lienId,
+          offer.terms.maxAmount,
+          lien,
+          offer,
+          signature,
+          proof
         )
       }
     } as const;
@@ -972,66 +1029,6 @@ export class Kettle {
           offer,
           signature,
           []
-        )
-      }
-    } as const;
-
-    return [...approvalActions, takeOfferAction];
-  }
-
-  public async takeCollectionBidOfferInLien(
-    lienId: bigint | number,
-    lien: Lien,
-    offer: MarketOffer,
-    proof: string[],
-    signature: string,
-    accountAddress?: string
-  ): Promise<(ApprovalAction | TakeOrderAction)[]> 
-  {
-    const signer = await this._getSigner(accountAddress);
-    const taker = accountAddress ?? (await signer.getAddress());
-    const operator = await this.contract.getAddress();
-
-    await this.validateBidOffer(offer);
-    await this.validateSellInLien(taker, lien, offer);
-
-    const { debt } = await this.contract.currentDebtAmount(lien);
-
-    const approvalActions = [];
-    const netAmount = this.calculateNetMarketAmount(
-      BigInt(offer.terms.amount),
-      BigInt(offer.fee.rate)
-    );
-
-    if (debt > netAmount) {
-      const diff = debt - netAmount;
-
-      const allowance = await currencyAllowance(
-        taker,
-        offer.terms.currency,
-        operator,
-        this.provider
-      );
-  
-      if (allowance < BigInt(diff)) {
-        const allowanceAction = await getAllowanceAction(
-            offer.terms.currency,
-            operator,
-            signer!
-          )
-        approvalActions.push(allowanceAction);
-      }
-    }
-
-    const takeOfferAction = {
-      type: "take",
-      takeOrder: async () => {
-        return await this.contract.connect(signer).sellInLien(
-          lienId,
-          lien,
-          offer,
-          signature,
-          proof
         )
       }
     } as const;
@@ -2250,8 +2247,10 @@ export class Kettle {
       throw new Error("Collections do not match")
     }
 
-    if (lien.tokenId != offer.collateral.identifier) {
-      throw new Error("TokenIds do not match")
+    if (offer.collateral.criteria === Criteria.SIMPLE) {
+      if (lien.tokenId != offer.collateral.identifier) {
+        throw new Error("TokenIds do not match")
+      }
     }
 
     if (BigInt(lien.startTime) + BigInt(lien.duration) + BigInt(lien.gracePeriod) < getEpoch()) {
