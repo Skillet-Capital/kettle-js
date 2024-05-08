@@ -1036,6 +1036,66 @@ export class Kettle {
     return [...approvalActions, takeOfferAction];
   }
 
+  public async takeCollectionBidOfferInLien(
+    lienId: bigint | number,
+    lien: Lien,
+    offer: MarketOffer,
+    proof: string[],
+    signature: string,
+    accountAddress?: string
+  ): Promise<(ApprovalAction | TakeOrderAction)[]> 
+  {
+    const signer = await this._getSigner(accountAddress);
+    const taker = accountAddress ?? (await signer.getAddress());
+    const operator = await this.contract.getAddress();
+
+    await this.validateBidOffer(offer);
+    await this.validateSellInLien(taker, lien, offer);
+
+    const { debt } = await this.contract.currentDebtAmount(lien);
+
+    const approvalActions = [];
+    const netAmount = this.calculateNetMarketAmount(
+      BigInt(offer.terms.amount),
+      BigInt(offer.fee.rate)
+    );
+
+    if (debt > netAmount) {
+      const diff = debt - netAmount;
+
+      const allowance = await currencyAllowance(
+        taker,
+        offer.terms.currency,
+        operator,
+        this.provider
+      );
+
+      if (allowance < BigInt(diff)) {
+        const allowanceAction = await getAllowanceAction(
+            offer.terms.currency,
+            operator,
+            signer!
+          )
+        approvalActions.push(allowanceAction);
+      }
+    }
+
+    const takeOfferAction = {
+      type: "take",
+      takeOrder: async () => {
+        return await this.contract.connect(signer).sellInLien(
+          lienId,
+          lien,
+          offer,
+          signature,
+          proof
+        )
+      }
+    } as const;
+
+    return [...approvalActions, takeOfferAction];
+  }
+
   public async repay(
     lienId: bigint | number,
     lien: Lien,
