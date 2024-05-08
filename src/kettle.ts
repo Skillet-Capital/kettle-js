@@ -1067,6 +1067,7 @@ export class Kettle {
       collection,
       itemType,
       identifier,
+      criteria,
       currency,
       amount,
       rate,
@@ -1081,7 +1082,7 @@ export class Kettle {
 
     const collateral: Collateral = {
       collection,
-      criteria: Criteria.SIMPLE,
+      criteria: criteria || Criteria.SIMPLE,
       itemType,
       identifier,
       size: 1,
