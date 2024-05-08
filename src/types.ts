@@ -174,6 +174,7 @@ export type CreateLoanOfferInput = {
   collection: string;
   itemType: ItemType;
   identifier: string | number | bigint;
+  criteria?: Criteria;
   currency: string;
   amount: string | number | bigint;
   rate: string | number | bigint;
