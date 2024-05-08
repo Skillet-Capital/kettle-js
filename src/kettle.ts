@@ -495,6 +495,64 @@ export class Kettle {
     return [...approvalActions, takeOfferAction];
   }
 
+  public async takeCollectionLoanOffer(
+    offer: LoanOffer, 
+    proof: string[],
+    signature: string,
+    accountAddress?: string
+  ): Promise<(ApprovalAction | TakeOrderAction)[]> 
+  {
+    const signer = await this._getSigner(accountAddress);
+    const taker = accountAddress ?? (await signer.getAddress());
+    const operator = await this.contract.getAddress();
+
+    await this.validateLoanOffer(offer);
+
+    // borrower balance checks and approvals
+    const balance = await collateralBalance(
+      taker,
+      offer.collateral,
+      this.provider
+    );
+
+    if (!balance) {
+      throw new Error("Borrower does not own collateral")
+    }
+
+    const approvals = await collateralApprovedForAll(
+      taker,
+      offer.collateral,
+      operator,
+      this.provider
+    );
+
+    const approvalActions = [];
+    if (!approvals) {
+      const approvalAction = await getApprovalAction(
+        offer.collateral.collection,
+        operator,
+        signer!
+      )
+      approvalActions.push(approvalAction);
+    }
+
+    const takeOfferAction = {
+      type: "take",
+      takeOrder: () => {
+        return this.contract.connect(signer).borrow(
+          offer,
+          offer.terms.maxAmount,
+          offer.collateral.identifier,
+          ADDRESS_ZERO,
+          signature,
+          proof
+        )
+      }
+    } as const;
+
+    return [...approvalActions, takeOfferAction];
+  }
+
   public async editBorrowOffer(
     salt: string,
     input: CreateBorrowOfferInput,
@@ -914,6 +972,66 @@ export class Kettle {
           offer,
           signature,
           []
+        )
+      }
+    } as const;
+
+    return [...approvalActions, takeOfferAction];
+  }
+
+  public async takeCollectionBidOfferInLien(
+    lienId: bigint | number,
+    lien: Lien,
+    offer: MarketOffer,
+    proof: string[],
+    signature: string,
+    accountAddress?: string
+  ): Promise<(ApprovalAction | TakeOrderAction)[]> 
+  {
+    const signer = await this._getSigner(accountAddress);
+    const taker = accountAddress ?? (await signer.getAddress());
+    const operator = await this.contract.getAddress();
+
+    await this.validateBidOffer(offer);
+    await this.validateSellInLien(taker, lien, offer);
+
+    const { debt } = await this.contract.currentDebtAmount(lien);
+
+    const approvalActions = [];
+    const netAmount = this.calculateNetMarketAmount(
+      BigInt(offer.terms.amount),
+      BigInt(offer.fee.rate)
+    );
+
+    if (debt > netAmount) {
+      const diff = debt - netAmount;
+
+      const allowance = await currencyAllowance(
+        taker,
+        offer.terms.currency,
+        operator,
+        this.provider
+      );
+  
+      if (allowance < BigInt(diff)) {
+        const allowanceAction = await getAllowanceAction(
+            offer.terms.currency,
+            operator,
+            signer!
+          )
+        approvalActions.push(allowanceAction);
+      }
+    }
+
+    const takeOfferAction = {
+      type: "take",
+      takeOrder: async () => {
+        return await this.contract.connect(signer).sellInLien(
+          lienId,
+          lien,
+          offer,
+          signature,
+          proof
         )
       }
     } as const;
