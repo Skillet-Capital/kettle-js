@@ -496,7 +496,8 @@ export class Kettle {
   }
 
   public async takeCollectionLoanOffer(
-    offer: LoanOffer, 
+    tokenId: string | number,
+    offer: LoanOffer,
     proof: [],
     signature: string,
     accountAddress?: string
@@ -521,7 +522,13 @@ export class Kettle {
 
     const approvals = await collateralApprovedForAll(
       taker,
-      offer.collateral,
+      {
+        collection: offer.collateral.collection,
+        criteria: Criteria.PROOF,
+        itemType: ItemType.ERC721,
+        identifier: tokenId,
+        size: offer.collateral.size
+      },
       operator,
       this.provider
     );
@@ -542,7 +549,7 @@ export class Kettle {
         return this.contract.connect(signer).borrow(
           offer,
           offer.terms.maxAmount,
-          offer.collateral.identifier,
+          tokenId,
           ADDRESS_ZERO,
           signature,
           proof
