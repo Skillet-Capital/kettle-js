@@ -2352,8 +2352,10 @@ export class Kettle {
       throw new Error("Collections do not match")
     }
 
-    if (lien.tokenId != offer.collateral.identifier) {
-      throw new Error("TokenIds do not match")
+    if (offer.collateral.criteria === Criteria.SIMPLE) {
+      if (lien.tokenId != offer.collateral.identifier) {
+        throw new Error("TokenIds do not match")
+      }
     }
 
     if (lienIsDefaulted(lien)) {
