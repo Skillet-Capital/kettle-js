@@ -36,7 +36,7 @@
     "chai-as-promised": "^7.1.1",
     "cross-env": "^7.0.3",
     "gts": "^5.2.0",
-    "hardhat": "^2.19.2",
+    "hardhat": "^2.22.7",
     "kettle_v3": "git+https://github.com/Skillet-Capital/kettle-contract.git#master",
     "sinon-chai": "^3.7.0",
     "solidity-coverage": "^0.8.11",
